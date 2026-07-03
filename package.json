@@ -1,0 +1,36 @@
+{
+  "name": "@kyrorblx/konsole",
+  "version": "0.1.0",
+  "description": "Small Roblox command console",
+  "author": "KYRORBLX <dullflowerr>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/KYRORBLX/Konsole.git"
+  },
+  "main": "src/init.luau",
+  "typings": "typings/index.d.ts",
+  "files": [
+    "src",
+    "typings",
+    "README.md",
+    "LICENSE"
+  ],
+  "types": "typings/index.d.ts",
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "rojo build default.project.json -o Konsole.rbxm",
+    "pack:test": "npm pack",
+    "sourcemap": "rojo sourcemap default.project.json -o sourcemap.json"
+  },
+  "keywords": [
+    "roblox",
+    "roblox-ts",
+    "wally",
+    "rojo",
+    "console",
+    "commands"
+  ]
+}
