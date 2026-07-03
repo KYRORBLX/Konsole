@@ -44,6 +44,7 @@ local function bindActivation(self)
 			return Enum.ContextActionResult.Pass
 		end
 
+		self.openedByActivation = not self.open
 		self:toggle()
 		return Enum.ContextActionResult.Sink
 	end, false, self.config.input.activationPriority, table.unpack(self.activationKeys))
@@ -72,6 +73,7 @@ function Controller.new(config)
 		mouseUnlockSet = nil,
 		previousChatWindowEnabled = nil,
 		previousChatInputEnabled = nil,
+		openedByActivation = false,
 		toggleActionName = `KonsoleToggle_{serial}`,
 	}, Controller)
 
@@ -228,7 +230,10 @@ function Controller:show()
 	end
 
 	local session = imports.Session.new(gui, self.config)
-	session:suppressNextActivationText()
+	if self.openedByActivation then
+		self.openedByActivation = false
+		session:suppressNextActivationText()
+	end
 	session:bindActivationText(function()
 		self:hide()
 	end)

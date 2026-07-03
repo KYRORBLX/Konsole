@@ -33,6 +33,15 @@ end
 
 local function handleActivationText(self, input)
 	local text = tostring(input.Text or "")
+	if self.suppressNextInputText and text ~= "" and os.clock() <= (self.suppressNextInputUntil or 0) then
+		self.suppressNextInputText = false
+		input.Text = ""
+		return true
+	end
+	if self.suppressNextInputText and os.clock() > (self.suppressNextInputUntil or 0) then
+		self.suppressNextInputText = false
+	end
+
 	if not string.find(text, "`", 1, true) then
 		return false
 	end
@@ -305,6 +314,8 @@ function Session.new(gui, config)
 		onSubmit = nil,
 		onActivationText = nil,
 		suppressActivation = false,
+		suppressNextInputText = false,
+		suppressNextInputUntil = 0,
 		inputActionName = nil,
 	}, Session)
 
@@ -341,6 +352,8 @@ end
 
 function Session:suppressNextActivationText()
 	self.suppressActivation = true
+	self.suppressNextInputText = true
+	self.suppressNextInputUntil = os.clock() + 0.12
 end
 
 function Session:setSuggestions(list)
