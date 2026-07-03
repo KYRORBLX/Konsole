@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  Small Roblox typed command console for in-game admin commands, debug commands, and typed utilities.
+  Little Roblox typed command console for in-game admin commands, debug commands, and typed utilities.
 </p>
 
 <p align="center">
