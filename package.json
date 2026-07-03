@@ -1,7 +1,7 @@
 {
   "name": "@kyrorblx/konsole",
   "version": "0.1.0",
-  "description": "Small Roblox command console",
+  "description": "A Small Roblox command console",
   "author": "KYRORBLX <dullflowerr>",
   "repository": {
     "type": "git",

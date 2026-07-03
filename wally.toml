@@ -1,6 +1,6 @@
 [package]
 name = "kyrorblx/konsole"
-description = "Small Roblox command console"
+description = "A Small Roblox command console"
 version = "0.1.0"
 license = "MIT"
 registry = "https://github.com/UpliftGames/wally-index"

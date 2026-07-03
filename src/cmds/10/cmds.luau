@@ -1,3 +1,9 @@
+--[[
+	@name cmds
+	@author driftingAurora, dullflowerr
+	@time July 3, 2026
+]]
+
 --!strict
 
 local imports = {

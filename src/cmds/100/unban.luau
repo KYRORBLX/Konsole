@@ -1,3 +1,9 @@
+--[[
+	@name unban
+	@author driftingAurora, dullflowerr
+	@time July 3, 2026
+]]
+
 --!strict
 
 local Types = require("../../core/shared/kommand/types")

@@ -1,3 +1,9 @@
+--[[
+	@name clear
+	@author driftingAurora, dullflowerr
+	@time July 3, 2026
+]]
+
 return table.freeze({
 	name = "clear",
 	rank = 0,
