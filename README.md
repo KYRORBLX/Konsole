@@ -25,7 +25,7 @@ Konsole is a typed compact command bar for Roblox games.
 Konsole, gives you an in-game terminal for commands like `kick`, `bring`, `tp`, `ranks`, and your own custom commands. It handles suggestions, typed arguments, command history, result tables, client/server dispatch, ranks, and small UI details like two command panes and argument chips.
 
 <p align="center">
-  <video src="assets/konsole-demo.mp4" controls width="720"></video>
+  <img src="assets/konsole-demo.gif" alt="Konsole demo" width="720">
 </p>
 
 ## Install
