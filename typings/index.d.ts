@@ -7,7 +7,7 @@ declare namespace Konsole {
 	export type Argument =
 		| {
 				name?: string;
-				type: "string";
+				type?: "string";
 				default?: string;
 				required?: boolean;
 				suggestions?: string[] | string;
@@ -15,7 +15,7 @@ declare namespace Konsole {
 		| {
 				name?: string;
 				type: "number";
-				default?: number | `${number}`;
+				default?: number;
 				required?: boolean;
 				suggestions?: `${number}`[] | `${number}`;
 		}
@@ -46,12 +46,11 @@ declare namespace Konsole {
 	}
 
 	type ArgumentValue<T extends Argument> =
-		T["type"] extends "string" ? string :
 		T["type"] extends "number" ? number :
 		T["type"] extends "boolean" ? boolean :
 		T["type"] extends "player" ? Player :
 		T["type"] extends "players" ? Player[] :
-		never;
+		string;
 
 	export type Run = (context: Context, ...args: unknown[]) => unknown;
 	export type RankResolver = (entity: unknown) => number | undefined;
