@@ -1,13 +1,43 @@
 /// <reference types="@rbxts/types" />
 
 declare namespace Konsole {
-	export interface Argument {
-		name?: string;
-		type?: string;
-		default?: unknown;
-		required?: boolean;
-		suggestions?: string[] | string;
-	}
+
+	type BooleanArgument = `${boolean}` | "yes" | "no" | "on" | "off" | "1" | "0";
+	
+	export type Argument =
+		| {
+				name?: string;
+				type: "string";
+				default?: string;
+				required?: boolean;
+				suggestions?: string[] | string;
+		}
+		| {
+				name?: string;
+				type: "number";
+				default?: number | `${number}`;
+				required?: boolean;
+				suggestions?: `${number}`[] | `${number}`;
+		}
+		| {
+				name?: string;
+				type: "boolean";
+				default?: boolean;
+				required?: boolean;
+				suggestions?: BooleanArgument[] | BooleanArgument;
+		}
+		| {
+				name?: string;
+				type: "player";
+				default?: never;
+				required?: boolean;
+		}
+		| {
+				name?: string;
+				type: "players";
+				default?: never;
+				required?: boolean;
+		};
 
 	export interface Outcome {
 		ok: boolean;
@@ -15,19 +45,31 @@ declare namespace Konsole {
 		message: string;
 	}
 
+	type ArgumentValue<T extends Argument> =
+		T["type"] extends "string" ? string :
+		T["type"] extends "number" ? number :
+		T["type"] extends "boolean" ? boolean :
+		T["type"] extends "player" ? Player :
+		T["type"] extends "players" ? Player[] :
+		never;
+
 	export type Run = (context: Context, ...args: unknown[]) => unknown;
 	export type RankResolver = (entity: unknown) => number | undefined;
 	export type ConfigOverrides = Record<string, Record<string, unknown>>;
 
-	export interface Definition {
+	type RunArgs<T extends readonly Argument[]> = {
+		[K in keyof T]: ArgumentValue<T[K]>;
+	};
+
+	export interface Definition<T extends readonly Argument[] = readonly Argument[]> {
 		name: string;
 		rank?: number | string;
 		aliases?: string[];
-		args?: Argument[];
+		args?: T;
 		description?: string;
 		cooldown?: number;
 		server?: string;
-		run?: Run;
+		run?: (context: Context, ...args: RunArgs<T>) => unknown;
 	}
 
 	export interface Command {
@@ -80,7 +122,9 @@ declare namespace Konsole {
 		Result: unknown;
 		bindRanks: (resolver?: RankResolver) => void;
 		create: (options?: ConfigOverrides) => Client;
-		define: (definition: Definition) => Command;
+		define: <const T extends readonly Argument[]>(
+			definition: Definition<T>,
+		) => Command;
 		getRank: (entity: unknown) => number;
 		host: (serverImplementations?: Record<string, Run>) => RemoteFunction | undefined;
 		implement: (name: string, callback: Run) => void;
