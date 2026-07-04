@@ -12,10 +12,10 @@ local imports = {
 
 local Types = require("./types")
 
+export type Converters = Types.Converters
+export type Converter = Types.Converter
 export type Argument = Types.Argument
 export type Caller = Types.Caller
-export type Converter = Types.Converter
-export type Converters = Types.Converters
 
 local Arguments = {}
 

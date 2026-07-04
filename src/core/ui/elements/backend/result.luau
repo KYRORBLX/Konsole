@@ -8,8 +8,8 @@
 
 local Types = require("../types")
 
-export type RenderResult = Types.RenderResult
 export type ResultOptions = Types.ResultOptions
+export type RenderResult = Types.RenderResult
 
 local Result = {}
 

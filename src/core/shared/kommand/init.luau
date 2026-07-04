@@ -13,9 +13,9 @@ local imports = {
 
 local Types = require("@self/types")
 
+export type Definition = Types.Definition
 export type Argument = Types.Argument
 export type Command = Types.Command
-export type Definition = Types.Definition
 export type Watcher = Types.Watcher
 
 local Kommand = {}

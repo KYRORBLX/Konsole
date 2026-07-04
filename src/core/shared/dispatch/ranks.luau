@@ -12,8 +12,8 @@ local imports = {
 
 local Types = require("../kommand/types")
 
-export type Rank = Types.Rank
 export type Resolver = Types.Resolver
+export type Rank = Types.Rank
 
 local Ranks = {}
 

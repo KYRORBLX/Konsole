@@ -6,13 +6,13 @@
 
 local imports = {
 	ContextActionService = game:GetService("ContextActionService"),
-	Players = game:GetService("Players"),
-	TextChatService = game:GetService("TextChatService"),
 	UserInputService = game:GetService("UserInputService"),
+	TextChatService = game:GetService("TextChatService"),
+	Players = game:GetService("Players"),
 
-	Result = require("./result"),
 	Session = require("../frontend/session"),
 	Text = require("../misc/text"),
+	Result = require("./result"),
 }
 
 local Controller = {}
@@ -239,6 +239,15 @@ function Controller:show()
 	end)
 	session:bindSubmit(function(text, channel)
 		local trimmed = string.lower((string.match(text, "^%s*(%S*)")) or "")
+		if trimmed == "close" or trimmed == "exit" then
+			if channel == 2 then
+				session:closeSecond()
+			else
+				self:hide()
+				self.savedSession = nil
+			end
+			return
+		end
 		if trimmed == "clear" or trimmed == "cls" then
 			session:clear(channel)
 			return

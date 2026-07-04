@@ -71,6 +71,8 @@ export type MotionGroup = {
 export type InputGroup = {
 	activationKeys: { Enum.KeyCode },
 	activationPriority: number,
+	command: string,
+	alias: string,
 }
 
 export type ColorGroup = {
@@ -189,6 +191,8 @@ Config.groups = {
 	input = {
 		activationKeys = { Enum.KeyCode.T },
 		activationPriority = 10001,
+		command = "KonsoleOpenCommand",
+		alias = "/konsole",
 	},
 
 	color = {

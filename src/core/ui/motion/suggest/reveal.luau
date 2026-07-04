@@ -37,6 +37,7 @@ function Reveal.open(session)
 	local layout = session.config.layout
 	local transparency = session.config.transparency
 	local openTime = motion.openSmoothTime or motion.expandSmoothTime
+	local showPlaceholder = refs.InputBox.Text == ""
 
 	Tween.to(refs.root, {
 		Position = UDim2.new(0.5, 0, 1, -panel.bottomInset),
@@ -49,7 +50,8 @@ function Reveal.open(session)
 	}, openTime)
 	Tween.to(refs.pillPad, { PaddingLeft = UDim.new(0, layout.paddingX) }, motion.textFadeTime)
 	Tween.fade(refs.Prompt, { TextTransparency = transparency.text }, motion.textFadeTime)
-	Tween.fade(refs.Placeholder, { TextTransparency = transparency.text }, motion.textFadeTime)
+	refs.Placeholder.Visible = showPlaceholder
+	Tween.fade(refs.Placeholder, { TextTransparency = showPlaceholder and transparency.text or 1 }, motion.textFadeTime)
 	Tween.fade(refs.ArrowIcon, {
 		ImageTransparency = transparency.arrow or transparency.text,
 	}, motion.textFadeTime)

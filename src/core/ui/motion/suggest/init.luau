@@ -5,8 +5,8 @@
 ]]
 
 local imports = {
-	Math = require("./math"),
 	View = require("../elements/misc/view"),
+	Math = require("./math"),
 }
 
 local Tween = imports.Math.tween

@@ -5,8 +5,8 @@
 ]]
 
 local imports = {
-	Providers = require("./providers"),
 	Suggest = require("../../motion/suggest"),
+	Providers = require("./providers"),
 	Text = require("../misc/text"),
 	View = require("../misc/view"),
 }

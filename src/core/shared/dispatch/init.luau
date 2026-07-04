@@ -7,21 +7,23 @@
 --!strict
 
 local imports = {
-	Players = game:GetService("Players"),
 	ReplicatedStorage = game:GetService("ReplicatedStorage"),
+
+	Players = game:GetService("Players"),
 	RunService = game:GetService("RunService"),
 
 	Arguments = require("./kommand/arguments"),
-	Kommand = require("./kommand"),
-	Ranks = require("@self/ranks"),
 	Table = require("./kommand/table"),
+	Ranks = require("@self/ranks"),
+
+	Kommand = require("./kommand"),
 }
 
 local Types = require("./kommand/types")
 
+export type Definition = Types.Definition
 export type Command = Types.Command
 export type Context = Types.Context
-export type Definition = Types.Definition
 export type Outcome = Types.Outcome
 export type Run = Types.Run
 

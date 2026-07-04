@@ -7,9 +7,9 @@
 --!strict
 
 local math = {
-	ease = require("@self/ease"),
 	slide = require("@self/slide"),
 	tween = require("@self/tween"),
+	ease = require("@self/ease"),
 }
 
 return math

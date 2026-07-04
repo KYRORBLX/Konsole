@@ -9,30 +9,33 @@
 local imports = {
 	RunService = game:GetService("RunService"),
 
-	cmds = require("@self/cmds"),
 	config = require("@self/config"),
+	cmds = require("@self/cmds"),
 	core = require("@self/core"),
 }
 
 local Types = require("@self/core/shared/kommand/types")
 
 export type Definition = Types.Definition
+export type Resolver = Types.Resolver
 export type Outcome = Types.Outcome
 export type Command = Types.Command
 export type Context = Types.Context
 export type Run = Types.Run
-export type Resolver = Types.Resolver
 
 type Client = any
 
 local Konsole = {
 	Arguments = imports.core.shared.arguments,
-	Config = imports.config,
 	Dispatch = imports.core.shared.dispatch,
+	Result = imports.core.ui.render.Result,
+
 	Kommand = imports.core.shared.kommand,
 	Ranks = imports.core.shared.ranks,
+	Chat = imports.core.shared.chat,
 	Render = imports.core.ui.render,
-	Result = imports.core.ui.render.Result,
+
+	Config = imports.config,
 } :: { [string]: any }
 
 local registered = false
@@ -154,24 +157,30 @@ function Konsole.destroy(): ()
 	end
 end
 
-for _, method in -- lovee
+for _, method in
 	{
-		"show",
-		"hide",
+		"setActivationUnlocksMouse",
+		"setMouseUnlockDriver",
+		"setActivationKeys",
+		"setSuggestions",
+		"getCursorTarget",
+		"setEnabled",
+		"setSchemas",
+		"bindRun",
 		"toggle",
 		"focus",
 		"clear",
-		"bindRun",
-		"setSuggestions",
-		"setSchemas",
-		"setActivationKeys",
-		"setEnabled",
-		"setActivationUnlocksMouse",
-		"setMouseUnlockDriver",
-		"getCursorTarget",
+		"show",
+		"hide",
 	}
 do
 	forward(method)
+end
+
+if imports.RunService:IsClient() then
+	imports.core.shared.chat.bindKonsoleOpen(function()
+		callDefault("show")
+	end)
 end
 
 return table.freeze(Konsole)

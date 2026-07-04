@@ -5,8 +5,8 @@
 ]]
 
 local imports = {
-	Players = game:GetService("Players"),
 	TextService = game:GetService("TextService"),
+	Players = game:GetService("Players"),
 
 	Arguments = require("../../../shared/kommand/arguments"),
 	Hint = require("../../motion/suggest/hint"),

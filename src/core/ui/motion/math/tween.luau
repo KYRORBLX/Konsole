@@ -8,7 +8,7 @@
 
 local imports = {
 	TweenService = game:GetService("TweenService"),
-
+	
 	Ease = require("./ease"),
 }
 

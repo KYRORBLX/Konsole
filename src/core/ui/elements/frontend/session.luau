@@ -8,16 +8,19 @@ local imports = {
 	ContextActionService = game:GetService("ContextActionService"),
 	UserInputService = game:GetService("UserInputService"),
 
-	History = require("../backend/history"),
-	Hints = require("./hints"),
-	Panel = require("./panel"),
 	Reveal = require("../../motion/suggest/reveal"),
 	Shape = require("../../motion/math/shape"),
 	Slide = require("../../motion/math/slide"),
+	
 	Suggest = require("../../motion/suggest"),
+	History = require("../backend/history"),
 	Suggestions = require("./suggestions"),
-	Text = require("../misc/text"),
+
 	View = require("../misc/view"),
+	Text = require("../misc/text"),
+	Hints = require("./hints"),
+	
+	Panel = require("./panel"),
 }
 
 local Session = {}
@@ -311,6 +314,7 @@ function Session.new(gui, config)
 		shadowQueued = false,
 		stackShadowHiding = false,
 		secondOpeningFromAdd = false,
+		secondClosingToAdd = false,
 		onSubmit = nil,
 		onActivationText = nil,
 		suppressActivation = false,
@@ -326,7 +330,7 @@ function Session.new(gui, config)
 	imports.Reveal.prepare(self)
 	task.defer(function()
 		imports.Reveal.open(self)
-		self.placeholderVisible[1] = true
+		self.placeholderVisible[1] = self.refs.InputBox.Text == ""
 		self:updateShadows()
 	end)
 
@@ -386,6 +390,12 @@ function Session:setPlaceholder(channel, visible)
 	end
 
 	self.placeholderVisible[channel] = visible
+	if not visible then
+		placeholder.TextTransparency = 1
+		placeholder.Visible = false
+		return
+	end
+
 	imports.Suggest.placeholder(self, placeholder, visible)
 end
 
@@ -453,8 +463,7 @@ function Session:collapse()
 	task.delay(self.config.motion.textFadeTime * 0.55, function()
 		if not self.isExpanded and typeof(self.refs.InputBox) == "Instance" then
 			self.refs.InputBox.Visible = false
-			self.refs.InputBox.Text = ""
-			self:setPlaceholder(1, true)
+			self:setPlaceholder(1, self.refs.InputBox.Text == "")
 		end
 	end)
 	task.delay(self.config.motion.collapseSmoothTime, function()
@@ -527,6 +536,24 @@ function Session:clear(channel)
 	self:layoutStack(self.config.motion.collapseSmoothTime or self.config.motion.outputSmoothTime)
 end
 
+function Session:closeSecond()
+	self.secondHistory = {}
+	self.secondClosingToAdd = true
+	self.hasSecondChat = false
+	self.hasSecondOutput = false
+	self.lineCache[2] = nil
+	self.renderedVersion[2] = nil
+	self.autoScroll[2] = true
+	self.savedScroll[2] = 0
+	self:markHistoryDirty(2)
+	self:renderHistory(2)
+	self:exitStructured(2)
+	self.activeChannel = 1
+	self:hideSuggestions()
+	self:hideHints(2)
+	self:layoutStack(self.config.motion.collapseSmoothTime or self.config.motion.outputSmoothTime)
+end
+
 function Session:snapshot()
 	return {
 		history = cloneHistory(self.history),
@@ -538,6 +565,10 @@ function Session:snapshot()
 		autoScroll = { self.autoScroll[1] ~= false, self.autoScroll[2] ~= false },
 		scroll = { self.savedScroll[1] or 0, self.savedScroll[2] or 0 },
 		width = self.layoutTargetWidth or self.restoredWidth or self:activeWidth(),
+		inputText = {
+			typeof(self.refs.InputBox) == "Instance" and self.refs.InputBox.Text or "",
+			typeof(self.refs.SecondInputBox) == "Instance" and self.refs.SecondInputBox.Text or "",
+		},
 	}
 end
 
@@ -568,6 +599,17 @@ function Session:restoreSnapshot(snapshot)
 	self.layoutTargetWidth = self.restoredWidth
 	self.lineCache = {}
 	self.renderedVersion = {}
+	local inputText = type(snapshot.inputText) == "table" and snapshot.inputText or {}
+	if typeof(self.refs.InputBox) == "Instance" then
+		self.refs.InputBox.Text = tostring(inputText[1] or "")
+		self.placeholderVisible[1] = nil
+		self:setPlaceholder(1, self.refs.InputBox.Text == "")
+	end
+	if typeof(self.refs.SecondInputBox) == "Instance" then
+		self.refs.SecondInputBox.Text = tostring(inputText[2] or "")
+		self.placeholderVisible[2] = nil
+		self:setPlaceholder(2, self.refs.SecondInputBox.Text == "")
+	end
 	self:markHistoryDirty(1)
 	self:markHistoryDirty(2)
 	if self.hasSecondChat and typeof(self.refs.SecondInputBox) == "Instance" then

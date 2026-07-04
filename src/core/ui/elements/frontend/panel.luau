@@ -8,8 +8,8 @@ local imports = {
 	TextService = game:GetService("TextService"),
 	Workspace = game:GetService("Workspace"),
 
-	History = require("../backend/history"),
 	Shape = require("../../motion/math/shape"),
+	History = require("../backend/history"),
 	View = require("../misc/view"),
 }
 

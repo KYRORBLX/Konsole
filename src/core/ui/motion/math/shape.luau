@@ -5,8 +5,8 @@
 ]]
 
 local imports = {
-	Math = require("../math"),
 	View = require("../../elements/misc/view"),
+	Math = require("../math"),
 }
 
 local Tween = imports.Math.tween
@@ -69,6 +69,22 @@ local function layoutAddChat(session, time, width, showAddChat, showSecondChat, 
 	local fadeTime = math.min(time, 0.14)
 
 	if showAddChat then
+		if session.secondClosingToAdd then
+			refs.addChatPill.Visible = false
+			task.delay(time, function()
+				if session.layoutSeq ~= layoutSeq or session.hasSecondChat or not session.isExpanded then
+					return
+				end
+				refs.addChatPill.Position = position
+				refs.addChatPill.Size = UDim2.fromOffset(openWidth, panel.height)
+				refs.addChatPill.BackgroundTransparency = 1
+				refs.addChatPill.Visible = true
+				Tween.to(refs.addChatPill, { BackgroundTransparency = transparency.panel }, fadeTime)
+				Tween.fade(refs.addChatIcon, { ImageTransparency = transparency.dimText }, fadeTime)
+			end)
+			return
+		end
+
 		if typeof(refs.addChatPill) == "Instance" and not refs.addChatPill.Visible then
 			refs.addChatPill.Position = position
 			refs.addChatPill.Size = UDim2.fromOffset(panel.addChatCollapsedWidth or panel.height, panel.height)
@@ -200,9 +216,11 @@ local function layoutSecond(session, time, width, showAddChat, showSecondChat, l
 	refs.secondCommandRow.ScrollingEnabled = false
 	refs.secondCommandRow.ScrollBarImageTransparency = 1
 	Tween.to(refs.secondCommandRow, { Size = UDim2.new(1, 0, 0, 0) }, time)
+	local targetWidth = session.secondClosingToAdd and session:addChatWidth(width) or width
+	local targetHeight = session.secondClosingToAdd and panel.height or 0
 	Tween.to(refs.secondPill, {
-		Size = UDim2.fromOffset(width, 0),
-		BackgroundTransparency = 1,
+		Size = UDim2.fromOffset(targetWidth, targetHeight),
+		BackgroundTransparency = session.secondClosingToAdd and transparency.panel or 1,
 	}, time)
 	task.delay(time, function()
 		if session.layoutSeq ~= layoutSeq then
@@ -213,6 +231,7 @@ local function layoutSecond(session, time, width, showAddChat, showSecondChat, l
 		if not stillWanted and typeof(refs.secondPill) == "Instance" then
 			refs.secondPill.Visible = false
 		end
+		session.secondClosingToAdd = false
 		if not stillWanted and typeof(refs.secondCommandRow) == "Instance" then
 			refs.secondCommandRow.Visible = false
 		end
