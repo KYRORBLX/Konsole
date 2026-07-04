@@ -50,6 +50,7 @@ interface KonsoleCommand extends Required<Omit<KonsoleDefinition, "rank" | "alia
 
 interface KonsoleApi {
 	Arguments: unknown;
+	Chat: unknown;
 	Config: unknown;
 	Dispatch: unknown;
 	Kommand: unknown;
@@ -65,6 +66,14 @@ interface KonsoleApi {
 	getRank(entity: unknown): number;
 	bindRanks(resolver?: (entity: unknown) => number | undefined): void;
 	destroy(): void;
+	bindRun(callback: (text: string) => unknown): void;
+	getCursorTarget(): Instance | undefined;
+	setActivationKeys(keys: Enum.KeyCode[]): void;
+	setActivationUnlocksMouse(enabled: boolean): void;
+	setEnabled(enabled: boolean): void;
+	setMouseUnlockDriver(getFn?: () => boolean, setFn?: (enabled: boolean) => void): void;
+	setSchemas(map: Record<string, unknown>): void;
+	setSuggestions(list: string[]): void;
 	show(): void;
 	hide(): void;
 	toggle(): void;

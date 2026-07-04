@@ -89,6 +89,12 @@ local function bindInputAction(self)
 			self:acceptSuggestion()
 			return Enum.ContextActionResult.Sink
 		end
+		if inputObject.KeyCode == Enum.KeyCode.Down and self:recallCommand(1) then
+			return Enum.ContextActionResult.Sink
+		end
+		if inputObject.KeyCode == Enum.KeyCode.Up and self:recallCommand(-1) then
+			return Enum.ContextActionResult.Sink
+		end
 		if inputObject.KeyCode == Enum.KeyCode.Down and self:moveSelection(1) then
 			return Enum.ContextActionResult.Sink
 		end
@@ -119,7 +125,16 @@ local function bindFieldChannel(self, input, channel)
 		end
 
 		self.activeChannel = channel
+		if not self.recallingCommand[channel] then
+			self.commandHistoryIndex[channel] = nil
+			self.commandDraft[channel] = nil
+		end
 		self:setPlaceholder(channel, cleaned == "")
+		if self.recallingCommand[channel] then
+			self:hideSuggestions()
+			self:queueVisibleWidthRefresh()
+			return
+		end
 		self:onCommandText(channel, cleaned)
 		self:queueVisibleWidthRefresh()
 	end)
@@ -131,6 +146,12 @@ local function bindGlobalInput(self)
 	return imports.UserInputService.InputBegan:Connect(function(inputObject, processed)
 		if self.isExpanded then
 			if inputObject.KeyCode == Enum.KeyCode.Tab and self:acceptSuggestion() then
+				return
+			end
+			if inputObject.KeyCode == Enum.KeyCode.Down and self:recallCommand(1) then
+				return
+			end
+			if inputObject.KeyCode == Enum.KeyCode.Up and self:recallCommand(-1) then
 				return
 			end
 			if inputObject.KeyCode == Enum.KeyCode.Down and self:moveSelection(1) then
@@ -281,6 +302,10 @@ function Session.new(gui, config)
 		activeChip = nil,
 		history = {},
 		secondHistory = {},
+		commandHistory = { {}, {} },
+		commandHistoryIndex = {},
+		commandDraft = {},
+		recallingCommand = {},
 		lineCache = {},
 		historyDirty = { true, true },
 		historyVersion = {},
@@ -399,6 +424,82 @@ function Session:setPlaceholder(channel, visible)
 	imports.Suggest.placeholder(self, placeholder, visible)
 end
 
+function Session:pushCommandHistory(channel, text)
+	channel = channel == 2 and 2 or 1
+	text = tostring(text or "")
+	if text == "" then
+		return
+	end
+
+	local items = self.commandHistory[channel]
+	if type(items) ~= "table" then
+		items = {}
+		self.commandHistory[channel] = items
+	end
+	if items[#items] ~= text then
+		table.insert(items, text)
+	end
+	self.commandHistoryIndex[channel] = nil
+	self.commandDraft[channel] = nil
+end
+
+function Session:recallCommand(delta)
+	local channel = self.activeChannel == 2 and 2 or 1
+	if self.activeChip and self.activeChip.channel then
+		channel = self.activeChip.channel == 2 and 2 or 1
+	end
+	if self.structured[channel] then
+		return false
+	end
+
+	local input = channel == 2 and self.refs.SecondInputBox or self.refs.InputBox
+	local chipFocused = self.activeChip and self.activeChip.channel == channel
+	if typeof(input) ~= "Instance" or (not input:IsFocused() and not chipFocused) then
+		return false
+	end
+
+	local items = self.commandHistory[channel]
+	if type(items) ~= "table" or #items == 0 then
+		return false
+	end
+
+	local index = self.commandHistoryIndex[channel]
+	if index == nil then
+		if delta > 0 then
+			return false
+		end
+		self.commandDraft[channel] = self:assembleCommand(channel)
+		index = #items
+	elseif delta < 0 then
+		index = math.max(1, index - 1)
+	else
+		index += 1
+		if index > #items then
+			self.commandHistoryIndex[channel] = nil
+			self:clearHintChips(channel)
+			self.recallingCommand[channel] = true
+			input.Text = tostring(self.commandDraft[channel] or "")
+			input.CursorPosition = #input.Text + 1
+			input:CaptureFocus()
+			task.defer(function()
+				self.recallingCommand[channel] = nil
+			end)
+			return true
+		end
+	end
+
+	self.commandHistoryIndex[channel] = index
+	self:clearHintChips(channel)
+	self.recallingCommand[channel] = true
+	input.Text = items[index]
+	input.CursorPosition = #input.Text + 1
+	input:CaptureFocus()
+	task.defer(function()
+		self.recallingCommand[channel] = nil
+	end)
+	return true
+end
+
 function Session:submit(channel)
 	local input = channel == 2 and self.refs.SecondInputBox or self.refs.InputBox
 	if typeof(input) ~= "Instance" then
@@ -410,6 +511,7 @@ function Session:submit(channel)
 		return
 	end
 
+	self:pushCommandHistory(channel, text)
 	input.Text = ""
 	self:exitStructured(channel)
 	self:setPlaceholder(channel, true)
@@ -538,6 +640,9 @@ end
 
 function Session:closeSecond()
 	self.secondHistory = {}
+	self.commandHistory[2] = {}
+	self.commandHistoryIndex[2] = nil
+	self.commandDraft[2] = nil
 	self.secondClosingToAdd = true
 	self.hasSecondChat = false
 	self.hasSecondOutput = false
@@ -558,6 +663,10 @@ function Session:snapshot()
 	return {
 		history = cloneHistory(self.history),
 		secondHistory = cloneHistory(self.secondHistory),
+		commandHistory = {
+			table.clone(self.commandHistory[1] or {}),
+			table.clone(self.commandHistory[2] or {}),
+		},
 		hasOutput = self.hasOutput == true,
 		hasSecondChat = self.hasSecondChat == true,
 		hasSecondOutput = self.hasSecondOutput == true,
@@ -579,6 +688,14 @@ function Session:restoreSnapshot(snapshot)
 
 	self.history = cloneHistory(snapshot.history)
 	self.secondHistory = cloneHistory(snapshot.secondHistory)
+	self.commandHistory = type(snapshot.commandHistory) == "table"
+			and {
+				table.clone(snapshot.commandHistory[1] or {}),
+				table.clone(snapshot.commandHistory[2] or {}),
+			}
+		or { {}, {} }
+	self.commandHistoryIndex = {}
+	self.commandDraft = {}
 	self.hasOutput = snapshot.hasOutput == true or #self.history > 0
 	self.hasSecondChat = snapshot.hasSecondChat == true or #self.secondHistory > 0
 	self.hasSecondOutput = snapshot.hasSecondOutput == true or #self.secondHistory > 0

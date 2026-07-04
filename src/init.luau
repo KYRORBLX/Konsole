@@ -36,7 +36,7 @@ local Konsole = {
 	Render = imports.core.ui.render,
 
 	Config = imports.config,
-} :: { [string]: any }
+}
 
 local registered = false
 local defaultClient: Client = nil
@@ -77,12 +77,6 @@ end
 local function callDefault(method: string, ...: any): ...any
 	local client = getDefaultClient()
 	return client[method](client, ...)
-end
-
-local function forward(method: string)
-	Konsole[method] = function(...: any): ...any
-		return callDefault(method, ...)
-	end
 end
 
 function Konsole.create(options: any?): Client
@@ -157,25 +151,59 @@ function Konsole.destroy(): ()
 	end
 end
 
-for _, method in
-	{
-		"setActivationUnlocksMouse",
-		"setMouseUnlockDriver",
-		"setActivationKeys",
-		"setSuggestions",
-		"getCursorTarget",
-		"setEnabled",
-		"setSchemas",
-		"bindRun",
-		"toggle",
-		"focus",
-		"clear",
-		"show",
-		"hide",
-	}
-do
-	forward(method)
+function Konsole.setActivationUnlocksMouse(enabled: boolean): ()
+	callDefault("setActivationUnlocksMouse", enabled)
 end
+
+function Konsole.setMouseUnlockDriver(getFn: (() -> boolean)?, setFn: ((boolean) -> ())?): ()
+	callDefault("setMouseUnlockDriver", getFn, setFn)
+end
+
+function Konsole.setActivationKeys(keys: { Enum.KeyCode }): ()
+	callDefault("setActivationKeys", keys)
+end
+
+function Konsole.setSuggestions(list: { string }): ()
+	callDefault("setSuggestions", list)
+end
+
+function Konsole.getCursorTarget(): Instance?
+	return callDefault("getCursorTarget")
+end
+
+function Konsole.setEnabled(enabled: boolean): ()
+	callDefault("setEnabled", enabled)
+end
+
+function Konsole.setSchemas(map: { [string]: any }): ()
+	callDefault("setSchemas", map)
+end
+
+function Konsole.bindRun(callback: (text: string) -> any): ()
+	callDefault("bindRun", callback)
+end
+
+function Konsole.toggle(): ()
+	callDefault("toggle")
+end
+
+function Konsole.focus(): ()
+	callDefault("focus")
+end
+
+function Konsole.clear(): ()
+	callDefault("clear")
+end
+
+function Konsole.show(): ()
+	callDefault("show")
+end
+
+function Konsole.hide(): ()
+	callDefault("hide")
+end
+
+export type Api = typeof(Konsole)
 
 if imports.RunService:IsClient() then
 	imports.core.shared.chat.bindKonsoleOpen(function()
