@@ -5,13 +5,12 @@
 ]]
 
 local imports = {
-	ContextActionService = game:GetService("ContextActionService"),
 	UserInputService = game:GetService("UserInputService"),
 
 	Reveal = require("../../motion/suggest/reveal"),
 	Shape = require("../../motion/math/shape"),
 	Slide = require("../../motion/math/slide"),
-	
+
 	Suggest = require("../../motion/suggest"),
 	History = require("../backend/history"),
 	Suggestions = require("./suggestions"),
@@ -19,29 +18,76 @@ local imports = {
 	View = require("../misc/view"),
 	Text = require("../misc/text"),
 	Hints = require("./hints"),
-	
+
 	Panel = require("./panel"),
 }
 
 local Session = {}
 Session.__index = Session
 
-imports.Panel.attach(Session)
 imports.Suggestions.attach(Session)
+imports.Panel.attach(Session)
 imports.Hints.attach(Session)
 
-local function cleanFieldText(value)
-	return imports.Text.cleanStart((string.gsub(tostring(value or ""), "\t", "")))
+local UIS = imports.UserInputService
+local Suggest = imports.Suggest
+local History = imports.History
+local Reveal = imports.Reveal
+local Shape = imports.Shape
+local Slide = imports.Slide
+local View = imports.View
+local Text = imports.Text
+
+local function ch(value)
+	return value == 2 and 2 or 1
 end
 
-local function handleActivationText(self, input)
+local function mainBox(self, channel)
+	return ch(channel) == 2 and self.refs.SecondInputBox or self.refs.InputBox
+end
+
+local function placeholder(self, channel)
+	return ch(channel) == 2 and self.refs.SecondPlaceholder or self.refs.Placeholder
+end
+
+local function clean(value)
+	return Text.cleanStart((string.gsub(tostring(value or ""), "\t", "")))
+end
+
+local function copyHistory(items)
+	local out = {}
+	for index, item in items or {} do
+		out[index] = {
+			wide = item.wide == true,
+			kind = item.kind,
+			text = item.text,
+		}
+	end
+	return out
+end
+
+local function setRecall(self, channel, input, text)
+	self:clearHintChips(channel)
+	self.recallingCommand[channel] = true
+	input.Text = text
+	input.CursorPosition = #input.Text + 1
+	input:CaptureFocus()
+	task.defer(function()
+		self.recallingCommand[channel] = nil
+	end)
+end
+
+local function activationText(self, input)
 	local text = tostring(input.Text or "")
-	if self.suppressNextInputText and text ~= "" and os.clock() <= (self.suppressNextInputUntil or 0) then
+	local suppressing = self.suppressNextInputText
+	local untilTime = self.suppressNextInputUntil or 0
+
+	if suppressing and text ~= "" and os.clock() <= untilTime then
 		self.suppressNextInputText = false
 		input.Text = ""
 		return true
 	end
-	if self.suppressNextInputText and os.clock() > (self.suppressNextInputUntil or 0) then
+	if suppressing and os.clock() > untilTime then
 		self.suppressNextInputText = false
 	end
 
@@ -54,73 +100,70 @@ local function handleActivationText(self, input)
 		self.suppressActivation = false
 		return true
 	end
-
-	if imports.Text.callable(self.onActivationText) then
+	if Text.callable(self.onActivationText) then
 		task.defer(self.onActivationText)
 	end
-
 	return true
 end
 
-local function cloneHistory(items)
-	local out = {}
-	for index, item in items or {} do
-		out[index] = {
-			kind = item.kind,
-			text = item.text,
-			wide = item.wide == true,
-		}
+local function keyInput(self, input)
+	if not self.isExpanded then
+		return false
 	end
 
-	return out
+	local key = input.KeyCode
+	if key == Enum.KeyCode.Tab then
+		return self:acceptSuggestion()
+	elseif key == Enum.KeyCode.Down then
+		return self:recallCommand(1) or self:moveSelection(1)
+	elseif key == Enum.KeyCode.Up then
+		return self:recallCommand(-1) or self:moveSelection(-1)
+	elseif key == Enum.KeyCode.Right then
+		return self:moveArgument(1)
+	elseif key == Enum.KeyCode.Left then
+		return self:moveArgument(-1)
+	end
+	return false
 end
 
-local function bindInputAction(self)
-	self.inputActionName = "KonsoleTerminalInput_" .. string.gsub(tostring(self), "%W", "")
-	imports.ContextActionService:BindActionAtPriority(self.inputActionName, function(_, inputState, inputObject)
-		if inputState ~= Enum.UserInputState.Begin then
-			return Enum.ContextActionResult.Pass
-		end
-		if not self.isExpanded or self.isClosing then
-			return Enum.ContextActionResult.Pass
-		end
-
-		if inputObject.KeyCode == Enum.KeyCode.Tab then
-			self:acceptSuggestion()
-			return Enum.ContextActionResult.Sink
-		end
-		if inputObject.KeyCode == Enum.KeyCode.Down and self:recallCommand(1) then
-			return Enum.ContextActionResult.Sink
-		end
-		if inputObject.KeyCode == Enum.KeyCode.Up and self:recallCommand(-1) then
-			return Enum.ContextActionResult.Sink
-		end
-		if inputObject.KeyCode == Enum.KeyCode.Down and self:moveSelection(1) then
-			return Enum.ContextActionResult.Sink
-		end
-		if inputObject.KeyCode == Enum.KeyCode.Up and self:moveSelection(-1) then
-			return Enum.ContextActionResult.Sink
-		end
-		if inputObject.KeyCode == Enum.KeyCode.Right and self:moveArgument(1) then
-			return Enum.ContextActionResult.Sink
-		end
-		if inputObject.KeyCode == Enum.KeyCode.Left and self:moveArgument(-1) then
-			return Enum.ContextActionResult.Sink
-		end
-
-		return Enum.ContextActionResult.Pass
-	end, false, 10000, Enum.KeyCode.Tab, Enum.KeyCode.Up, Enum.KeyCode.Down, Enum.KeyCode.Left, Enum.KeyCode.Right)
+local function inShell(refs, point)
+	return View.pointIn(refs.pill, point)
+		or View.pointIn(refs.addChatPill, point)
+		or View.pointIn(refs.secondPill, point)
+		or View.pointIn(refs.suggList, point)
 end
 
-local function bindFieldChannel(self, input, channel)
+local function clickInput(self)
+	local refs = self.refs
+	local point = UIS:GetMouseLocation()
+
+	if not inShell(refs, point) then
+		if self.config.input.forceclose and Text.callable(self.onCloseRequest) then
+			self.onCloseRequest()
+		else
+			self:collapse()
+		end
+		return
+	end
+
+	if View.pointIn(refs.secondPill, point) then
+		self.activeChannel = 2
+		refs.SecondInputBox:CaptureFocus()
+	else
+		self.activeChannel = 1
+		refs.InputBox:CaptureFocus()
+	end
+end
+
+local function bindText(self, input, channel)
 	return input:GetPropertyChangedSignal("Text"):Connect(function()
-		if handleActivationText(self, input) then
+		if activationText(self, input) then
 			return
 		end
 
-		local cleaned = cleanFieldText(input.Text)
-		if input.Text ~= cleaned then
-			input.Text = cleaned
+		local text = clean(input.Text)
+		if input.Text ~= text then
+			input.Text = text
 			return
 		end
 
@@ -129,73 +172,42 @@ local function bindFieldChannel(self, input, channel)
 			self.commandHistoryIndex[channel] = nil
 			self.commandDraft[channel] = nil
 		end
-		self:setPlaceholder(channel, cleaned == "")
+
+		self:setPlaceholder(channel, text == "")
 		if self.recallingCommand[channel] then
 			self:hideSuggestions()
 			self:queueVisibleWidthRefresh()
 			return
 		end
-		self:onCommandText(channel, cleaned)
+
+		self:onCommandText(channel, text)
 		self:queueVisibleWidthRefresh()
 	end)
 end
 
-local function bindGlobalInput(self)
+local function bindInput(self)
 	local refs = self.refs
 
-	return imports.UserInputService.InputBegan:Connect(function(inputObject, processed)
-		if self.isExpanded then
-			if inputObject.KeyCode == Enum.KeyCode.Tab and self:acceptSuggestion() then
-				return
-			end
-			if inputObject.KeyCode == Enum.KeyCode.Down and self:recallCommand(1) then
-				return
-			end
-			if inputObject.KeyCode == Enum.KeyCode.Up and self:recallCommand(-1) then
-				return
-			end
-			if inputObject.KeyCode == Enum.KeyCode.Down and self:moveSelection(1) then
-				return
-			end
-			if inputObject.KeyCode == Enum.KeyCode.Up and self:moveSelection(-1) then
-				return
-			end
-			if inputObject.KeyCode == Enum.KeyCode.Right and self:moveArgument(1) then
-				return
-			end
-			if inputObject.KeyCode == Enum.KeyCode.Left and self:moveArgument(-1) then
-				return
-			end
+	return UIS.InputBegan:Connect(function(input, processed)
+		if keyInput(self, input) then
+			return
 		end
 		if processed then
 			return
 		end
 
-		if inputObject.KeyCode == Enum.KeyCode.Escape then
+		if input.KeyCode == Enum.KeyCode.Escape then
 			self:collapse()
 			return
 		end
-		if inputObject.UserInputType ~= Enum.UserInputType.MouseButton1 or not self.isExpanded then
+		if input.UserInputType ~= Enum.UserInputType.MouseButton1 or not self.isExpanded then
 			return
 		end
-		if refs.InputBox:IsFocused() or refs.SecondInputBox:IsFocused() then
+		if not self.config.input.forceclose and (refs.InputBox:IsFocused() or refs.SecondInputBox:IsFocused()) then
 			return
 		end
 
-		local point = imports.UserInputService:GetMouseLocation()
-		local inTerminal = imports.View.pointIn(refs.pill, point)
-			or imports.View.pointIn(refs.addChatPill, point)
-			or imports.View.pointIn(refs.secondPill, point)
-			or imports.View.pointIn(refs.suggList, point)
-		if not inTerminal then
-			self:collapse()
-		elseif imports.View.pointIn(refs.secondPill, point) then
-			self.activeChannel = 2
-			refs.SecondInputBox:CaptureFocus()
-		else
-			self.activeChannel = 1
-			refs.InputBox:CaptureFocus()
-		end
+		clickInput(self)
 	end)
 end
 
@@ -203,13 +215,14 @@ local function bindRefs(self)
 	local refs = self.refs
 	local motion = self.config.motion
 
-	local function track(connection)
-		table.insert(self.connections, connection)
+	local function track(conn)
+		table.insert(self.connections, conn)
 	end
 
 	track(refs.pillBtn.Activated:Connect(function()
 		self:expand()
 	end))
+
 	track(refs.addChatPill.MouseEnter:Connect(function()
 		self:setAddChatHover(true)
 	end))
@@ -234,24 +247,18 @@ local function bindRefs(self)
 			refs.SecondInputBox:CaptureFocus()
 		end)
 	end))
-	track(refs.InputBox.Focused:Connect(function()
-		self:releaseActiveChip(1)
-	end))
-	track(refs.SecondInputBox.Focused:Connect(function()
-		self:releaseActiveChip(2)
-	end))
-	track(refs.InputBox.FocusLost:Connect(function(enterPressed)
-		if enterPressed then
-			self:submit(1)
-		end
-	end))
-	track(refs.SecondInputBox.FocusLost:Connect(function(enterPressed)
-		if enterPressed then
-			self:submit(2)
-		end
-	end))
-	track(bindFieldChannel(self, refs.InputBox, 1))
-	track(bindFieldChannel(self, refs.SecondInputBox, 2))
+
+	for channel, input in { refs.InputBox, refs.SecondInputBox } do
+		track(input.Focused:Connect(function()
+			self:releaseActiveChip(channel)
+		end))
+		track(input.FocusLost:Connect(function(enterPressed)
+			if enterPressed then
+				self:submit(channel)
+			end
+		end))
+		track(bindText(self, input, channel))
+	end
 
 	for _, signal in
 		{
@@ -279,82 +286,92 @@ local function bindRefs(self)
 		end))
 	end
 
-	track(bindGlobalInput(self))
+	track(bindInput(self))
 end
+
+local function baseState(config)
+	return {
+		connections = {},
+		config = config,
+		refs = {},
+
+		suggestionSource = {},
+		hintConnections = {},
+		channelChips = {},
+		argSchemas = {},
+
+		commandWord = {},
+		activeChip = nil,
+		structured = {},
+		hintToken = 0,
+		hintKey = {},
+
+		historyDirty = { true, true },
+		commandHistory = { {}, {} },
+		commandHistoryIndex = {},
+		measuredLineHeight = nil,
+		recallingCommand = {},
+		renderedVersion = {},
+		historyVersion = {},
+		secondHistory = {},
+		commandDraft = {},
+		lineCache = {},
+		history = {},
+
+		hasSecondOutput = false,
+		hasSecondChat = false,
+		isDestroying = false,
+		isExpanded = false,
+		hasOutput = false,
+		isClosing = false,
+		activeChannel = 1,
+
+		suggestionConnections = {},
+		currentSuggestions = {},
+		selectedSuggestion = nil,
+		suggestionsHiding = false,
+		suggestionQuery = "",
+		suggestToken = 0,
+
+		placeholderVisible = { false, false },
+		autoScroll = { true, true },
+		savedScroll = { 0, 0 },
+		refreshMeasuredToken = {},
+		scrollSyncToken = {},
+		syncingScroll = {},
+
+		secondOpeningFromAdd = false,
+		secondClosingToAdd = false,
+		layoutTargetWidth = nil,
+		stackShadowHiding = false,
+		widthRefreshToken = 0,
+		addChatHover = false,
+		restoredWidth = nil,
+		shadowQueued = false,
+		queuedWidth = nil,
+		layoutSeq = 0,
+
+		suppressNextInputUntil = 0,
+		suppressNextInputText = false,
+		suppressActivation = false,
+		onActivationText = nil,
+		onCloseRequest = nil,
+		onSubmit = nil,
+	}
+end	
 
 function Session.new(gui, config)
 	if typeof(gui) ~= "Instance" then
 		return nil
 	end
 
-	local self = setmetatable({
-		config = config,
-		refs = {},
-		connections = {},
-		suggestionSource = {},
-		argSchemas = {},
-		channelChips = {},
-		hintConnections = {},
-		hintKey = {},
-		hintToken = 0,
-		structured = {},
-		commandWord = {},
-		activeChip = nil,
-		history = {},
-		secondHistory = {},
-		commandHistory = { {}, {} },
-		commandHistoryIndex = {},
-		commandDraft = {},
-		recallingCommand = {},
-		lineCache = {},
-		historyDirty = { true, true },
-		historyVersion = {},
-		renderedVersion = {},
-		measuredLineHeight = nil,
-		hasOutput = false,
-		hasSecondChat = false,
-		hasSecondOutput = false,
-		isExpanded = false,
-		isClosing = false,
-		isDestroying = false,
-		activeChannel = 1,
-		suggestToken = 0,
-		currentSuggestions = {},
-		selectedSuggestion = nil,
-		suggestionQuery = "",
-		suggestionsHiding = false,
-		suggestionConnections = {},
-		autoScroll = { true, true },
-		savedScroll = { 0, 0 },
-		syncingScroll = {},
-		scrollSyncToken = {},
-		refreshMeasuredToken = {},
-		placeholderVisible = { false, false },
-		addChatHover = false,
-		layoutSeq = 0,
-		layoutTargetWidth = nil,
-		restoredWidth = nil,
-		queuedWidth = nil,
-		widthRefreshToken = 0,
-		shadowQueued = false,
-		stackShadowHiding = false,
-		secondOpeningFromAdd = false,
-		secondClosingToAdd = false,
-		onSubmit = nil,
-		onActivationText = nil,
-		suppressActivation = false,
-		suppressNextInputText = false,
-		suppressNextInputUntil = 0,
-		inputActionName = nil,
-	}, Session)
-
-	imports.View.createTree(self, gui)
-	bindInputAction(self)
+	local self = setmetatable(baseState(config), Session)
+	View.createTree(self, gui)
 	bindRefs(self)
 
-	imports.Reveal.prepare(self)
+	Reveal.prepare(self)
 	task.defer(function()
-		imports.Reveal.open(self)
+		Reveal.open(self)
 		self.placeholderVisible[1] = self.refs.InputBox.Text == ""
 		self:updateShadows()
 	end)
@@ -367,16 +384,19 @@ function Session:activeInput()
 	if chip and chip.channel == self.activeChannel and typeof(chip.box) == "Instance" and chip.box.Parent then
 		return chip.box
 	end
-
-	return self.activeChannel == 2 and self.refs.SecondInputBox or self.refs.InputBox
+	return mainBox(self, self.activeChannel)
 end
 
 function Session:bindSubmit(fn)
-	self.onSubmit = imports.Text.callable(fn) and fn or nil
+	self.onSubmit = Text.callable(fn) and fn or nil
 end
 
-function Session:bindActivationText(callback)
-	self.onActivationText = imports.Text.callable(callback) and callback or nil
+function Session:bindActivationText(fn)
+	self.onActivationText = Text.callable(fn) and fn or nil
+end
+
+function Session:bindCloseRequest(fn)
+	self.onCloseRequest = Text.callable(fn) and fn or nil
 end
 
 function Session:suppressNextActivationText()
@@ -388,12 +408,14 @@ end
 function Session:setSuggestions(list)
 	local seen = {}
 	local out = {}
+
 	local function push(value)
 		local text = tostring(value or "")
-		if text ~= "" and not seen[text] then
-			seen[text] = true
-			table.insert(out, text)
+		if text == "" or seen[text] then
+			return
 		end
+		seen[text] = true
+		table.insert(out, text)
 	end
 
 	for _, item in type(list) == "table" and list or {} do
@@ -409,57 +431,58 @@ function Session:setSuggestions(list)
 end
 
 function Session:setPlaceholder(channel, visible)
-	local placeholder = channel == 2 and self.refs.SecondPlaceholder or self.refs.Placeholder
-	if typeof(placeholder) ~= "Instance" or self.placeholderVisible[channel] == visible then
+	channel = ch(channel)
+	local label = placeholder(self, channel)
+	if typeof(label) ~= "Instance" or self.placeholderVisible[channel] == visible then
 		return
 	end
 
 	self.placeholderVisible[channel] = visible
 	if not visible then
-		placeholder.TextTransparency = 1
-		placeholder.Visible = false
+		label.TextTransparency = 1
+		label.Visible = false
 		return
 	end
 
-	imports.Suggest.placeholder(self, placeholder, visible)
+	Suggest.placeholder(self, label, visible)
 end
 
 function Session:pushCommandHistory(channel, text)
-	channel = channel == 2 and 2 or 1
+	channel = ch(channel)
 	text = tostring(text or "")
 	if text == "" then
 		return
 	end
 
-	local items = self.commandHistory[channel]
-	if type(items) ~= "table" then
-		items = {}
-		self.commandHistory[channel] = items
+	local list = self.commandHistory[channel]
+	if type(list) ~= "table" then
+		list = {}
+		self.commandHistory[channel] = list
 	end
-	if items[#items] ~= text then
-		table.insert(items, text)
+	if list[#list] ~= text then
+		table.insert(list, text)
 	end
 	self.commandHistoryIndex[channel] = nil
 	self.commandDraft[channel] = nil
 end
 
 function Session:recallCommand(delta)
-	local channel = self.activeChannel == 2 and 2 or 1
+	local channel = ch(self.activeChannel)
 	if self.activeChip and self.activeChip.channel then
-		channel = self.activeChip.channel == 2 and 2 or 1
+		channel = ch(self.activeChip.channel)
 	end
 	if self.structured[channel] then
 		return false
 	end
 
-	local input = channel == 2 and self.refs.SecondInputBox or self.refs.InputBox
+	local input = mainBox(self, channel)
 	local chipFocused = self.activeChip and self.activeChip.channel == channel
 	if typeof(input) ~= "Instance" or (not input:IsFocused() and not chipFocused) then
 		return false
 	end
 
-	local items = self.commandHistory[channel]
-	if type(items) ~= "table" or #items == 0 then
+	local list = self.commandHistory[channel]
+	if type(list) ~= "table" or #list == 0 then
 		return false
 	end
 
@@ -469,44 +492,31 @@ function Session:recallCommand(delta)
 			return false
 		end
 		self.commandDraft[channel] = self:assembleCommand(channel)
-		index = #items
+		index = #list
 	elseif delta < 0 then
 		index = math.max(1, index - 1)
 	else
 		index += 1
-		if index > #items then
+		if index > #list then
 			self.commandHistoryIndex[channel] = nil
-			self:clearHintChips(channel)
-			self.recallingCommand[channel] = true
-			input.Text = tostring(self.commandDraft[channel] or "")
-			input.CursorPosition = #input.Text + 1
-			input:CaptureFocus()
-			task.defer(function()
-				self.recallingCommand[channel] = nil
-			end)
+			setRecall(self, channel, input, tostring(self.commandDraft[channel] or ""))
 			return true
 		end
 	end
 
 	self.commandHistoryIndex[channel] = index
-	self:clearHintChips(channel)
-	self.recallingCommand[channel] = true
-	input.Text = items[index]
-	input.CursorPosition = #input.Text + 1
-	input:CaptureFocus()
-	task.defer(function()
-		self.recallingCommand[channel] = nil
-	end)
+	setRecall(self, channel, input, list[index])
 	return true
 end
 
 function Session:submit(channel)
-	local input = channel == 2 and self.refs.SecondInputBox or self.refs.InputBox
+	channel = ch(channel)
+	local input = mainBox(self, channel)
 	if typeof(input) ~= "Instance" then
 		return
 	end
 
-	local text = imports.Text.trim(self:assembleCommand(channel))
+	local text = Text.trim(self:assembleCommand(channel))
 	if text == "" then
 		return
 	end
@@ -517,7 +527,7 @@ function Session:submit(channel)
 	self:setPlaceholder(channel, true)
 	self:hideSuggestions()
 	self:hideHints(channel)
-	if imports.Text.callable(self.onSubmit) then
+	if Text.callable(self.onSubmit) then
 		self.onSubmit(text, channel)
 	end
 	task.defer(function()
@@ -540,7 +550,7 @@ function Session:expand()
 		self.activeChannel = 1
 	end
 
-	imports.Shape.expand(self)
+	Shape.expand(self)
 	task.defer(function()
 		local input = self:activeInput()
 		if typeof(input) == "Instance" then
@@ -560,7 +570,7 @@ function Session:collapse()
 	self.isExpanded = false
 	self:hideSuggestions()
 	self:hideHints()
-	imports.Shape.collapse(self)
+	Shape.collapse(self)
 
 	task.delay(self.config.motion.textFadeTime * 0.55, function()
 		if not self.isExpanded and typeof(self.refs.InputBox) == "Instance" then
@@ -592,7 +602,6 @@ function Session:getCursorTarget()
 	if typeof(self.refs.pillBtn) == "Instance" and self.refs.pillBtn.Parent then
 		return self.refs.pillBtn
 	end
-
 	return nil
 end
 
@@ -616,7 +625,7 @@ function Session:clear(channel)
 		return
 	end
 
-	channel = channel == 2 and 2 or 1
+	channel = ch(channel)
 	if channel == 2 then
 		self.secondHistory = {}
 		self.hasSecondOutput = false
@@ -627,6 +636,7 @@ function Session:clear(channel)
 			self.hasSecondChat = false
 		end
 	end
+
 	self.lineCache = {}
 	self.renderedVersion = {}
 	self.autoScroll[channel] = true
@@ -661,8 +671,8 @@ end
 
 function Session:snapshot()
 	return {
-		history = cloneHistory(self.history),
-		secondHistory = cloneHistory(self.secondHistory),
+		history = copyHistory(self.history),
+		secondHistory = copyHistory(self.secondHistory),
 		commandHistory = {
 			table.clone(self.commandHistory[1] or {}),
 			table.clone(self.commandHistory[2] or {}),
@@ -670,7 +680,7 @@ function Session:snapshot()
 		hasOutput = self.hasOutput == true,
 		hasSecondChat = self.hasSecondChat == true,
 		hasSecondOutput = self.hasSecondOutput == true,
-		activeChannel = self.activeChannel == 2 and 2 or 1,
+		activeChannel = ch(self.activeChannel),
 		autoScroll = { self.autoScroll[1] ~= false, self.autoScroll[2] ~= false },
 		scroll = { self.savedScroll[1] or 0, self.savedScroll[2] or 0 },
 		width = self.layoutTargetWidth or self.restoredWidth or self:activeWidth(),
@@ -681,52 +691,52 @@ function Session:snapshot()
 	}
 end
 
-function Session:restoreSnapshot(snapshot)
-	if type(snapshot) ~= "table" then
+function Session:restoreSnapshot(data)
+	if type(data) ~= "table" then
 		return
 	end
 
-	self.history = cloneHistory(snapshot.history)
-	self.secondHistory = cloneHistory(snapshot.secondHistory)
-	self.commandHistory = type(snapshot.commandHistory) == "table"
+	self.history = copyHistory(data.history)
+	self.secondHistory = copyHistory(data.secondHistory)
+	self.commandHistory = type(data.commandHistory) == "table"
 			and {
-				table.clone(snapshot.commandHistory[1] or {}),
-				table.clone(snapshot.commandHistory[2] or {}),
+				table.clone(data.commandHistory[1] or {}),
+				table.clone(data.commandHistory[2] or {}),
 			}
 		or { {}, {} }
 	self.commandHistoryIndex = {}
 	self.commandDraft = {}
-	self.hasOutput = snapshot.hasOutput == true or #self.history > 0
-	self.hasSecondChat = snapshot.hasSecondChat == true or #self.secondHistory > 0
-	self.hasSecondOutput = snapshot.hasSecondOutput == true or #self.secondHistory > 0
-	self.activeChannel = snapshot.activeChannel == 2 and 2 or 1
-	self.autoScroll = type(snapshot.autoScroll) == "table"
+	self.hasOutput = data.hasOutput == true or #self.history > 0
+	self.hasSecondChat = data.hasSecondChat == true or #self.secondHistory > 0
+	self.hasSecondOutput = data.hasSecondOutput == true or #self.secondHistory > 0
+	self.activeChannel = ch(data.activeChannel)
+	self.autoScroll = type(data.autoScroll) == "table"
 			and {
-				snapshot.autoScroll[1] ~= false,
-				snapshot.autoScroll[2] ~= false,
+				data.autoScroll[1] ~= false,
+				data.autoScroll[2] ~= false,
 			}
 		or { true, true }
-	self.savedScroll = type(snapshot.scroll) == "table"
+	self.savedScroll = type(data.scroll) == "table"
 			and {
-				tonumber(snapshot.scroll[1]) or 0,
-				tonumber(snapshot.scroll[2]) or 0,
+				tonumber(data.scroll[1]) or 0,
+				tonumber(data.scroll[2]) or 0,
 			}
 		or { 0, 0 }
-	self.restoredWidth = tonumber(snapshot.width)
+	self.restoredWidth = tonumber(data.width)
 	self.layoutTargetWidth = self.restoredWidth
 	self.lineCache = {}
 	self.renderedVersion = {}
-	local inputText = type(snapshot.inputText) == "table" and snapshot.inputText or {}
-	if typeof(self.refs.InputBox) == "Instance" then
-		self.refs.InputBox.Text = tostring(inputText[1] or "")
-		self.placeholderVisible[1] = nil
-		self:setPlaceholder(1, self.refs.InputBox.Text == "")
+
+	local inputText = type(data.inputText) == "table" and data.inputText or {}
+	for channel = 1, 2 do
+		local input = mainBox(self, channel)
+		if typeof(input) == "Instance" then
+			input.Text = tostring(inputText[channel] or "")
+			self.placeholderVisible[channel] = nil
+			self:setPlaceholder(channel, input.Text == "")
+		end
 	end
-	if typeof(self.refs.SecondInputBox) == "Instance" then
-		self.refs.SecondInputBox.Text = tostring(inputText[2] or "")
-		self.placeholderVisible[2] = nil
-		self:setPlaceholder(2, self.refs.SecondInputBox.Text == "")
-	end
+
 	self:markHistoryDirty(1)
 	self:markHistoryDirty(2)
 	if self.hasSecondChat and typeof(self.refs.SecondInputBox) == "Instance" then
@@ -734,20 +744,21 @@ function Session:restoreSnapshot(snapshot)
 	end
 
 	task.defer(function()
-		if self.refs then
-			self:renderHistory(1)
-			self:renderHistory(2)
-			self:layoutStack(self.config.motion.outputSmoothTime or 0.24, self:activeWidth())
-			task.defer(function()
-				self.restoredWidth = nil
-				self:queueWidthRefresh()
-			end)
+		if not self.refs then
+			return
 		end
+		self:renderHistory(1)
+		self:renderHistory(2)
+		self:layoutStack(self.config.motion.outputSmoothTime or 0.24, self:activeWidth())
+		task.defer(function()
+			self.restoredWidth = nil
+			self:queueWidthRefresh()
+		end)
 	end)
 end
 
-local function appendItem(self, channel, item)
-	channel = channel == 2 and 2 or 1
+local function append(self, channel, item)
+	channel = ch(channel)
 	if channel == 2 then
 		self.hasSecondChat = true
 		self.hasSecondOutput = true
@@ -756,12 +767,12 @@ local function appendItem(self, channel, item)
 	end
 
 	self.autoScroll[channel] = true
-	imports.History.append(channel == 2 and self.secondHistory or self.history, item)
+	History.append(channel == 2 and self.secondHistory or self.history, item)
 	self:markHistoryDirty(channel)
 	self:layoutStack(self.config.motion.outputSmoothTime)
 	task.defer(function()
 		if self.refs then
-			imports.Slide.history(self, channel)
+			Slide.history(self, channel)
 		end
 	end)
 	self:refreshMeasured(channel)
@@ -769,16 +780,16 @@ local function appendItem(self, channel, item)
 end
 
 function Session:appendPending(text, channel)
-	appendItem(self, channel, {
+	append(self, channel, {
 		kind = "cmd",
 		text = tostring(text or ""),
 	})
 end
 
 function Session:appendResult(result, channel)
-	appendItem(self, channel, {
-		kind = imports.History.resultKind(result),
-		text = imports.History.resultText(result),
+	append(self, channel, {
+		kind = History.resultKind(result),
+		text = History.resultText(result),
 		wide = type(result) == "table" and result.width == "wide",
 	})
 end
@@ -790,21 +801,20 @@ function Session:destroy()
 	self.shadowQueued = false
 	self.stackShadowHiding = true
 	self:hideSuggestions()
-	imports.View.clearSuggestionConnections(self)
-	if self.inputActionName then
-		imports.ContextActionService:UnbindAction(self.inputActionName)
-		self.inputActionName = nil
-	end
-	if typeof(self.refs.InputBox) == "Instance" then
-		self.refs.InputBox:ReleaseFocus()
+	View.clearSuggestionConnections(self)
+
+	for _, input in { self.refs.InputBox, self.refs.SecondInputBox } do
+		if typeof(input) == "Instance" then
+			input:ReleaseFocus()
+		end
 	end
 
-	local cleanupDelay = imports.Reveal.close(self)
-	task.delay(cleanupDelay, function()
-		imports.View.clearSuggestionConnections(self)
-		for _, connection in self.connections do
-			if connection and connection.Connected then
-				connection:Disconnect()
+	local delay = Reveal.close(self)
+	task.delay(delay, function()
+		View.clearSuggestionConnections(self)
+		for _, conn in self.connections do
+			if conn and conn.Connected then
+				conn:Disconnect()
 			end
 		end
 		self.connections = {}

@@ -436,6 +436,7 @@ Pass config overrides into `Konsole.create(...)`.
 local client = Konsole.create({
 	input = {
 		activationKeys = { Enum.KeyCode.Semicolon },
+		forceclose = true, -- outside click fully closes instead of only releasing input focus
 	},
 	panel = {
 		width = 280,

@@ -71,6 +71,7 @@ export type MotionGroup = {
 export type InputGroup = {
 	activationKeys: { Enum.KeyCode },
 	activationPriority: number,
+	forceclose: boolean,
 	command: string,
 	alias: string,
 }
@@ -111,118 +112,135 @@ export type CommandsGroup = {
 }
 
 export type MergedConfig = {
-	font: FontGroup,
-	panel: PanelGroup,
-	layout: LayoutGroup,
-	motion: MotionGroup,
-	input: InputGroup,
-	color: ColorGroup,
 	transparency: TransparencyGroup,
 	commands: CommandsGroup,
+	motion: MotionGroup,
+	layout: LayoutGroup,
+	panel: PanelGroup,
+	color: ColorGroup,
+	input: InputGroup,
+	font: FontGroup,
 }
 
 export type ConfigOverrides = { [string]: { [string]: any } }
 
+local INF = 100000
+local rgb = Color3.fromRGB
+
+local function flat(...)
+	local out = {}
+	for _, part in { ... } do
+		for key, value in part do
+			out[key] = value
+		end
+	end
+	return out
+end
+
 local Config = {}
 
 Config.groups = {
-	font = {
-		body = Enum.Font.BuilderSans,
-		title = Enum.Font.BuilderSansBold,
-		mono = Enum.Font.Code,
-	},
-
-	panel = {
-		width = 252,
+	panel = flat({
+		wideWidth = INF,
+		maxWidth = INF,
 		outputWidth = 338,
-		wideWidth = 100000,
-		maxWidth = 100000,
 		collapsedWidth = 204,
-		addChatCollapsedWidth = 42,
-		addChatHoverWidth = 204,
+		width = 252,
 		height = 34,
-		inputHeight = 24,
-		commandHeight = 14,
+	}, {
+		stackHistoryMaxHeight = 190,
 		historyLineHeight = 14,
 		historyChunkLines = 90,
 		historyMaxHeight = 340,
-		stackHistoryMaxHeight = 190,
 		viewportTopInset = 24,
-		suggestionHeight = 26,
-		suggestionGap = 8,
-		suggestionRadius = 10,
-		maxSuggestions = 5,
-		hintHeight = 17,
-		outputRadius = 12,
+		commandHeight = 14,
 		bottomInset = 24,
-		displayOrder = 8241,
-		shadowAssetId = "1316045217",
-		arrowAssetId = "6031104654",
-		addChatAssetId = "6035047391",
+		inputHeight = 24,
+	}, {
+		addChatCollapsedWidth = 42,
+		addChatHoverWidth = 204,
+		suggestionRadius = 10,
+		suggestionHeight = 26,
+		maxSuggestions = 5,
+		suggestionGap = 8,
+		outputRadius = 12,
+		hintHeight = 17,
 		stackGap = 8,
-	},
+	}, {
+		shadowAssetId = "1316045217",
+		addChatAssetId = "6035047391",
+		arrowAssetId = "6031104654",
+		displayOrder = 8241,
+	}),
 
-	layout = {
-		paddingX = 12,
-		paddingY = 5,
-		promptSize = 13,
-		textSize = 14,
-		suggTextSize = 13,
-		hintTextSize = 14,
-		hintOffsetY = 1,
-		itemGap = 6,
+	color = {
+		inputText = rgb(255, 255, 255),
+		promptText = rgb(210, 210, 210),
+		successText = rgb(137, 255, 126),
+		errorText = rgb(255, 126, 126),
+		shadowColor = rgb(0, 0, 0),
+		mutedText = rgb(159, 159, 159),
+		suggText = rgb(238, 238, 238),
+		hintGhost = rgb(110, 110, 110),
+		suggPanel = rgb(8, 8, 8),
+		warnText = rgb(255, 211, 106),
+		successRich = "#89FF7E",
+		errorRich = "#FF7E7E",
+		mutedRich = "#9F9F9F",
+		warnRich = "#FFD36A",
+		suggMatch = "#FFFFFF",
+		suggSub = "#CFCFCF",
+		panel = rgb(0, 0, 0),
 	},
 
 	motion = {
-		expandSmoothTime = 0.34,
-		openSmoothTime = 0.46,
-		openSlideOffset = 44,
-		outputSmoothTime = 0.24,
-		listSmoothTime = 0.28,
-		textFadeTime = 0.34,
-		textSlideOffset = 10,
 		itemSlideSmoothTime = 0.30,
 		collapseSmoothTime = 0.38,
-		exitFadeTime = 0.34,
-		hintFadeTime = 0.22,
+		expandSmoothTime = 0.34,
+		openSlideOffset = 44,
+		outputSmoothTime = 0.24,
 		hintSlideTime = 0.34,
+		listSmoothTime = 0.28,
+		textSlideOffset = 10,
+		hintFadeTime = 0.22,
+		openSmoothTime = 0.46,
+		textFadeTime = 0.34,
+		exitFadeTime = 0.34,
+	},
+
+	layout = {
+		suggTextSize = 13,
+		hintTextSize = 14,
+		hintOffsetY = 1,
+		promptSize = 13,
+		paddingX = 12,
+		paddingY = 5,
+		textSize = 14,
+		itemGap = 6,
+	},
+
+	transparency = {
+		suggPanel = 0.42,
+		suggText = 0,
+		dimText = 0.18,
+		shadow = 0.80,
+		panel = 0.50,
+		arrow = 0.35,
+		text = 0,
 	},
 
 	input = {
 		activationKeys = { Enum.KeyCode.T },
-		activationPriority = 10001,
 		command = "KonsoleOpenCommand",
+		activationPriority = 10001,
+		forceclose = false,
 		alias = "/konsole",
 	},
 
-	color = {
-		panel = Color3.fromRGB(0, 0, 0),
-		inputText = Color3.fromRGB(255, 255, 255),
-		promptText = Color3.fromRGB(210, 210, 210),
-		suggPanel = Color3.fromRGB(8, 8, 8),
-		suggText = Color3.fromRGB(238, 238, 238),
-		suggMatch = "#FFFFFF",
-		suggSub = "#CFCFCF",
-		hintGhost = Color3.fromRGB(110, 110, 110),
-		successRich = "#89FF7E",
-		successText = Color3.fromRGB(137, 255, 126),
-		errorRich = "#FF7E7E",
-		errorText = Color3.fromRGB(255, 126, 126),
-		warnRich = "#FFD36A",
-		warnText = Color3.fromRGB(255, 211, 106),
-		mutedRich = "#9F9F9F",
-		mutedText = Color3.fromRGB(159, 159, 159),
-		shadowColor = Color3.fromRGB(0, 0, 0),
-	},
-
-	transparency = {
-		panel = 0.50,
-		suggPanel = 0.42,
-		shadow = 0.80,
-		arrow = 0.35,
-		text = 0,
-		suggText = 0,
-		dimText = 0.18,
+	font = {
+		title = Enum.Font.BuilderSansBold,
+		body = Enum.Font.BuilderSans,
+		mono = Enum.Font.Code,
 	},
 
 	commands = {
@@ -234,11 +252,12 @@ Config.groups = {
 function Config.merge(options: ConfigOverrides?): MergedConfig
 	local config: { [string]: any } = {}
 	local groups: { [string]: any } = Config.groups :: any
+
 	for name, group in groups do
-		local merged: { [string]: any } = table.clone(group)
-		local overrides = type(options) == "table" and (options :: ConfigOverrides)[name]
-		if type(overrides) == "table" then
-			for key, value in overrides do
+		local merged = table.clone(group)
+		local override = type(options) == "table" and (options :: ConfigOverrides)[name]
+		if type(override) == "table" then
+			for key, value in override do
 				merged[key] = value
 			end
 		end
