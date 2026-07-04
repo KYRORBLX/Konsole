@@ -32,5 +32,9 @@
     "rojo",
     "console",
     "commands"
-  ]
+  ],
+  "devDependencies": {
+    "@rbxts/compiler-types": "^3.0.0-types.0",
+    "@rbxts/types": "^1.0.915"
+  }
 }
