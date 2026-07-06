@@ -331,7 +331,7 @@ declare namespace Konsole {
 		readonly new: (options?: ConfigOverrides) => Client;
 	}
 
-	type RunArgs<T extends readonly Argument[]> = number extends T["length"]
+	type RunArgs<T extends readonly Argument[]> = number extends (T & { length: number })["length"]
 		? []
 		: { [K in keyof T]: ArgumentRuntimeValue<T[K]> };
 
