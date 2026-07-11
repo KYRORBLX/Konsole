@@ -10,6 +10,7 @@ local imports = {
 
     Dragging = require("../../motion/math/dragging"),
     Reveal = require("../../motion/suggest/reveal"),
+	Scroll = require("../../motion/math/scroll"),
     Shape = require("../../motion/math/shape"),
     Slide = require("../../motion/math/slide"),
     Tween = require("../../motion/math/tween"),
@@ -32,6 +33,7 @@ local Suggest = imports.Suggest
 local History = imports.History
 
 local Reveal = imports.Reveal
+local Scroll = imports.Scroll
 local Shape = imports.Shape
 local Slide = imports.Slide
 local Tween = imports.Tween
@@ -356,6 +358,57 @@ local function bindInput(self)
     end)
 end
 
+local function scrollHistory(self, input)
+    if not self.isExpanded or input.UserInputType ~= Enum.UserInputType.MouseWheel then
+        return
+    end
+
+    local refs = self.refs
+    local point = userInputService:GetMouseLocation()
+
+    local channel, row
+
+    if View.pointIn(refs.secondCommandRow, point) then
+        channel = 2
+        row = refs.secondCommandRow
+
+    elseif View.pointIn(refs.commandRow, point) then
+        channel = 1
+        row = refs.commandRow
+
+    else
+        return
+    end
+
+    if not row.ScrollingEnabled then
+        return
+    end
+
+    local limit = math.max(0, self:rawHistoryHeight(channel) - self:historyHeight(channel))
+
+    if limit <= 0 then
+        return
+    end
+
+    local tween, position = Scroll.wheel(row, -input.Position.Z * self:lineHeight() * 3, limit)
+
+    if not tween then
+        return
+    end
+
+    self.autoScroll[channel] = false
+    self.savedScroll[channel] = position
+
+    tween.Completed:Once(function()
+        task.defer(function()
+            if self.refs and not Scroll.animating(row) then
+                self:renderHistory(channel)
+                self:queueVisibleWidthRefresh(channel)
+            end
+        end)
+    end)
+end
+
 local function bindRefs(self)
     local refs = self.refs
     local motion = self.config.motion
@@ -464,7 +517,7 @@ local function bindRefs(self)
     for channel, row in { refs.commandRow, refs.secondCommandRow } do
 
         track(row:GetPropertyChangedSignal("CanvasPosition"):Connect(function()
-            if self.syncingScroll[channel] then
+            if self.syncingScroll[channel] or Scroll.animating(row) then
                 return
             end
 
@@ -478,6 +531,10 @@ local function bindRefs(self)
     end
 
     track(bindInput(self))
+
+    track(userInputService.InputChanged:Connect(function(input)
+        scrollHistory(self, input)
+    end))
 end
 
 local function baseState(config)
@@ -1209,6 +1266,10 @@ function Session:destroy()
 
     self.shadowQueued = false
     self.isExpanded = false
+
+    self.layoutSeq += 1
+    self.widthRefreshToken += 1
+    self.secondWidthRefreshToken += 1
 
     self:hideSuggestions()
 
