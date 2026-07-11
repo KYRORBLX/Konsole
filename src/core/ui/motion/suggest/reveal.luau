@@ -4,12 +4,24 @@
 	@time June 13, 2026
 ]]
 
+--// imports
 local imports = {
 	Math = require("../math"),
 }
 
 local Tween = imports.Math.tween
 
+--// locals
+local function shifted(position, offset)
+	return UDim2.new(position.X.Scale, position.X.Offset, position.Y.Scale, position.Y.Offset + offset)
+end
+
+local function savedPosition(session, key, root)
+	local position = session[key]
+	return typeof(position) == "UDim2" and position or root.Position
+end
+
+--// public api
 local Reveal = {}
 
 function Reveal.prepare(session)
@@ -18,8 +30,12 @@ function Reveal.prepare(session)
 	local panel = session.config.panel
 	local layout = session.config.layout
 	local slide = motion.textSlideOffset or 10
+	local position = savedPosition(session, "rootPosition", refs.root)
+	local secondPosition = savedPosition(session, "secondRootPosition", refs.secondRoot)
 
-	refs.root.Position = UDim2.new(0.5, 0, 1, -panel.bottomInset + (motion.openSlideOffset or 44))
+	session.rootPosition = position
+	session.secondRootPosition = secondPosition
+	refs.root.Position = shifted(position, motion.openSlideOffset or 44)
 	refs.root.Size = UDim2.fromOffset(0, panel.height)
 	refs.pill.Size = UDim2.fromOffset(0, panel.height)
 	refs.pill.BackgroundTransparency = 1
@@ -28,6 +44,18 @@ function Reveal.prepare(session)
 	refs.ArrowIcon.ImageTransparency = 1
 	refs.pillPad.PaddingLeft = UDim.new(0, layout.paddingX + slide)
 	refs.InputBox.Visible = false
+
+	refs.secondRoot.Position = shifted(secondPosition, motion.openSlideOffset or 44)
+	refs.secondRoot.Size = UDim2.fromOffset(0, panel.height)
+	refs.secondRoot.Visible = false
+	refs.secondPill.Position = UDim2.new(0.5, 0, 1, 0)
+	refs.secondPill.Size = UDim2.fromOffset(0, panel.height)
+	refs.secondPill.BackgroundTransparency = 1
+	refs.SecondPrompt.TextTransparency = 1
+	refs.SecondPlaceholder.TextTransparency = 1
+	refs.SecondInputBox.TextTransparency = 1
+	refs.SecondArrowIcon.ImageTransparency = 1
+	refs.SecondInputBox.Visible = false
 end
 
 function Reveal.open(session)
@@ -38,9 +66,10 @@ function Reveal.open(session)
 	local transparency = session.config.transparency
 	local openTime = motion.openSmoothTime or motion.expandSmoothTime
 	local showPlaceholder = refs.InputBox.Text == ""
+	local position = savedPosition(session, "rootPosition", refs.root)
 
 	Tween.to(refs.root, {
-		Position = UDim2.new(0.5, 0, 1, -panel.bottomInset),
+		Position = position,
 		Size = UDim2.fromOffset(panel.collapsedWidth, panel.height),
 	}, openTime)
 	Tween.to(refs.pill, {
@@ -55,6 +84,34 @@ function Reveal.open(session)
 	Tween.fade(refs.ArrowIcon, {
 		ImageTransparency = transparency.arrow or transparency.text,
 	}, motion.textFadeTime)
+
+	if not session.hasSecondChat then
+		return
+	end
+
+	local secondPosition = savedPosition(session, "secondRootPosition", refs.secondRoot)
+	local showSecondPlaceholder = refs.SecondInputBox.Text == ""
+	refs.secondRoot.Visible = true
+	refs.secondPill.Visible = true
+	refs.SecondInputBox.Visible = true
+	Tween.to(refs.secondRoot, {
+		Position = secondPosition,
+		Size = UDim2.fromOffset(panel.collapsedWidth, panel.height),
+	}, openTime)
+	Tween.to(refs.secondPill, {
+		Position = UDim2.new(0.5, 0, 1, 0),
+		Size = UDim2.fromOffset(panel.collapsedWidth, panel.height),
+		BackgroundTransparency = transparency.panel,
+	}, openTime)
+	refs.SecondPlaceholder.Visible = showSecondPlaceholder
+	Tween.fade(refs.SecondPrompt, { TextTransparency = transparency.text }, motion.textFadeTime)
+	Tween.fade(refs.SecondInputBox, { TextTransparency = transparency.text }, motion.textFadeTime)
+	Tween.fade(refs.SecondPlaceholder, {
+		TextTransparency = showSecondPlaceholder and transparency.text or 1,
+	}, motion.textFadeTime)
+	Tween.fade(refs.SecondArrowIcon, {
+		ImageTransparency = transparency.arrow or transparency.text,
+	}, motion.textFadeTime)
 end
 
 function Reveal.close(session)
@@ -67,35 +124,26 @@ function Reveal.close(session)
 	local slideDelay = 0.04
 	local addChatFadeTime = 0.08
 	local width = panel.collapsedWidth
-
-	local addChatWidth = width
-	local addChatReturnPosition = UDim2.new(0.5, 0, 1, 0)
-	if typeof(refs.addChatPill) == "Instance" and refs.addChatPill.Size.X.Offset > 1 then
-		addChatWidth = refs.addChatPill.Size.X.Offset
-		addChatReturnPosition = refs.addChatPill.Position
-	elseif typeof(refs.root) == "Instance" and refs.root.Size.X.Offset > 1 then
-		addChatWidth = refs.root.Size.X.Offset
-	end
+	local position = savedPosition(session, "rootPosition", refs.root)
+	local secondPosition = savedPosition(session, "secondRootPosition", refs.secondRoot)
+	local hasSecondChat = session.hasSecondChat
 
 	Tween.to(refs.commandRow, { Size = UDim2.new(1, 0, 0, 0) }, closeTime)
 	Tween.to(refs.secondCommandRow, { Size = UDim2.new(1, 0, 0, 0) }, closeTime)
 	Tween.to(refs.addChatPill, {
-		Position = addChatReturnPosition,
-		Size = UDim2.fromOffset(addChatWidth, 0),
-		BackgroundTransparency = 1,
-	}, closeTime)
-	Tween.to(refs.secondPill, {
+		Position = UDim2.new(0.5, 0, 1, 0),
 		Size = UDim2.fromOffset(width, 0),
 		BackgroundTransparency = 1,
 	}, closeTime)
 	Tween.fade(refs.pillShadow, { ImageTransparency = 1 }, closeTime)
 	Tween.fade(refs.suggShadow, { ImageTransparency = 1 }, closeTime)
 	Tween.fade(refs.stackShadow, { ImageTransparency = 1 }, closeTime)
-	task.defer(function()
+	Tween.fade(refs.secondShadow, { ImageTransparency = 1 }, closeTime)
+	task.delay(closeTime, function()
 		if not session.isClosing then
 			return
 		end
-		for _, name in { "pillShadow", "suggShadow", "stackShadow" } do
+		for _, name in { "pillShadow", "suggShadow", "stackShadow", "secondShadow" } do
 			if typeof(refs[name]) == "Instance" then
 				refs[name].Visible = false
 			end
@@ -121,6 +169,17 @@ function Reveal.close(session)
 		Size = UDim2.fromOffset(width, panel.height),
 		Position = UDim2.new(0.5, 0, 1, 0),
 	}, closeTime)
+	if hasSecondChat then
+		refs.secondRoot.Visible = true
+		refs.secondPill.Visible = true
+		Tween.to(refs.secondRoot, { Size = UDim2.fromOffset(width, panel.height) }, closeTime)
+		Tween.to(refs.secondPill, {
+			Position = UDim2.new(0.5, 0, 1, 0),
+			Size = UDim2.fromOffset(width, panel.height),
+			BackgroundTransparency = transparency.panel,
+		}, closeTime)
+		Tween.to(refs.secondPillCorner, { CornerRadius = UDim.new(1, 0) }, closeTime)
+	end
 	task.delay(addChatFadeTime, function()
 		if typeof(refs.addChatIcon) == "Instance" then
 			refs.addChatIcon.ImageTransparency = 1
@@ -135,7 +194,7 @@ function Reveal.close(session)
 			return
 		end
 		Tween.to(refs.root, {
-			Position = UDim2.new(0.5, 0, 1, -panel.bottomInset + (motion.openSlideOffset or 44)),
+			Position = shifted(position, motion.openSlideOffset or 44),
 			Size = UDim2.fromOffset(0, panel.height),
 		}, slideTime)
 		Tween.to(refs.pill, {
@@ -146,6 +205,17 @@ function Reveal.close(session)
 		Tween.fade(refs.ArrowIcon, { ImageTransparency = 1 }, motion.exitFadeTime)
 		Tween.fade(refs.Placeholder, { TextTransparency = 1 }, motion.exitFadeTime)
 		Tween.fade(refs.Prompt, { TextTransparency = 1 }, motion.exitFadeTime)
+
+		if hasSecondChat and refs.secondRoot then
+			Tween.to(refs.secondRoot, {
+				Position = shifted(secondPosition, motion.openSlideOffset or 44),
+				Size = UDim2.fromOffset(0, panel.height),
+			}, slideTime)
+			Tween.to(refs.secondPill, {
+				Size = UDim2.fromOffset(0, panel.height),
+				BackgroundTransparency = 1,
+			}, slideTime)
+		end
 	end)
 
 	return slideDelay + slideTime + 0.05

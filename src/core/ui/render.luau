@@ -1,11 +1,12 @@
+--!strict
+
 --[[
 	@name render
 	@author driftingAurora, dullflowerr
 	@time June 12, 2026
 ]]
 
---!strict
-
+--// imports
 local ConfigModule = require("../../config")
 
 local imports = {
@@ -16,11 +17,13 @@ local imports = {
 	Text = require("./elements/misc/text"),
 }
 
+--// types
 export type ConfigOverrides = ConfigModule.ConfigOverrides
 export type Config = ConfigModule.MergedConfig
 
 export type Client = any
 
+--// public api
 local Render = {
 	Formatter = imports.Formatter,
 	Result = imports.Result,

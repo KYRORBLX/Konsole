@@ -1,22 +1,23 @@
+--!strict
+
 --[[
 	@name providers
 	@author driftingAurora, dullflowerr
 	@time June 13, 2026
 ]]
 
---!strict
-
+--// imports
 local imports = {
 	Players = game:GetService("Players"),
 }
 
 local Types = require("../../../shared/kommand/types")
 
+--// types
 export type Argument = Types.Argument
 type Provider = () -> { string }
 
-local Providers: { [string]: any } = {}
-
+--// locals
 local function playerNames(): { string }
 	local out = { "me", "all", "others" }
 	for _, player in imports.Players:GetPlayers() do
@@ -25,6 +26,9 @@ local function playerNames(): { string }
 
 	return out
 end
+
+--// public api
+local Providers: { [string]: any } = {}
 
 Providers.player = playerNames
 Providers.players = playerNames

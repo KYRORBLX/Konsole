@@ -4,9 +4,11 @@
 	@time June 12, 2026
 ]]
 
+--// imports
 local imports = {
 	UserInputService = game:GetService("UserInputService"),
 
+	Dragging = require("../../motion/math/dragging"),
 	Reveal = require("../../motion/suggest/reveal"),
 	Shape = require("../../motion/math/shape"),
 	Slide = require("../../motion/math/slide"),
@@ -22,14 +24,9 @@ local imports = {
 	Panel = require("./panel"),
 }
 
-local Session = {}
-Session.__index = Session
-
-imports.Suggestions.attach(Session)
-imports.Panel.attach(Session)
-imports.Hints.attach(Session)
-
-local UIS = imports.UserInputService
+--// locals
+local userInputService = imports.UserInputService
+local Dragging = imports.Dragging
 local Suggest = imports.Suggest
 local History = imports.History
 local Reveal = imports.Reveal
@@ -66,6 +63,63 @@ local function copyHistory(items)
 	return out
 end
 
+local function shifted(position, offset)
+	return UDim2.new(position.X.Scale, position.X.Offset, position.Y.Scale, position.Y.Offset + offset)
+end
+
+local function setDraggingEnabled(self, enabled)
+	local refs = self.refs
+	refs.mainDragging.setEnabled(enabled)
+	refs.secondDragging.setEnabled(enabled and self.hasSecondChat)
+end
+
+local function detachSecond(self)
+	local refs = self.refs
+	local width = self.layoutTargetWidth or refs.root.Size.X.Offset
+	local stackExtra = self:stackExtra()
+	local rootPosition = refs.root.Position
+	local secondSize = refs.addChatPill.Size
+
+	refs.secondRoot.Visible = true
+	refs.secondRoot.Size = secondSize
+	refs.secondPill.Position = UDim2.new(0.5, 0, 1, 0)
+	refs.secondPill.Size = secondSize
+	refs.secondPill.BackgroundTransparency = refs.addChatPill.BackgroundTransparency
+	refs.secondPill.Visible = true
+	refs.secondDragging.setPosition(rootPosition)
+
+	refs.root.Size = UDim2.fromOffset(width, self:mainHeight())
+	refs.pill.Position = UDim2.new(0.5, 0, 1, 0)
+	refs.pillBtn.Position = UDim2.new(0.5, 0, 1, 0)
+	local mainPosition = shifted(rootPosition, -stackExtra)
+	refs.mainDragging.setPosition(mainPosition)
+
+	if typeof(refs.secondShadow) == "Instance" then
+		refs.secondShadow.ImageTransparency = refs.stackShadow.ImageTransparency
+		View.setShadowBounds(refs.secondShadow, refs.secondPill)
+	end
+	refs.stackShadow.Visible = false
+	refs.addChatPill.Visible = false
+end
+
+local function attachAddChat(self)
+	if not self.isExpanded or not self.hasOutput then
+		return
+	end
+
+	local refs = self.refs
+	local panel = self.config.panel
+	local width = self.layoutTargetWidth or refs.root.Size.X.Offset
+	local stackExtra = panel.height + (panel.stackGap or 8)
+	local mainPosition = refs.root.Position
+
+	refs.root.Size = UDim2.fromOffset(width, refs.pill.Size.Y.Offset + stackExtra)
+	refs.pill.Position = UDim2.new(0.5, 0, 1, -stackExtra)
+	refs.pillBtn.Position = UDim2.new(0.5, 0, 1, -stackExtra)
+	local rootPosition = shifted(mainPosition, stackExtra)
+	refs.mainDragging.setPosition(rootPosition)
+end
+
 local function setRecall(self, channel, input, text)
 	self:clearHintChips(channel)
 	self.recallingCommand[channel] = true
@@ -82,13 +136,19 @@ local function activationText(self, input)
 	local suppressing = self.suppressNextInputText
 	local untilTime = self.suppressNextInputUntil or 0
 
-	if suppressing and text ~= "" and os.clock() <= untilTime then
+	if suppressing and os.clock() <= untilTime then
 		self.suppressNextInputText = false
-		input.Text = ""
-		return true
+		if #text == 1 then
+			input.Text = ""
+			return true
+		end
+
+		self.suppressActivation = false
+		return false
 	end
 	if suppressing and os.clock() > untilTime then
 		self.suppressNextInputText = false
+		self.suppressActivation = false
 	end
 
 	if not string.find(text, "`", 1, true) then
@@ -115,9 +175,9 @@ local function keyInput(self, input)
 	if key == Enum.KeyCode.Tab then
 		return self:acceptSuggestion()
 	elseif key == Enum.KeyCode.Down then
-		return self:recallCommand(1) or self:moveSelection(1)
+		return self:moveSelection(1) or self:recallCommand(1)
 	elseif key == Enum.KeyCode.Up then
-		return self:recallCommand(-1) or self:moveSelection(-1)
+		return self:moveSelection(-1) or self:recallCommand(-1)
 	elseif key == Enum.KeyCode.Right then
 		return self:moveArgument(1)
 	elseif key == Enum.KeyCode.Left then
@@ -135,13 +195,21 @@ end
 
 local function clickInput(self)
 	local refs = self.refs
-	local point = UIS:GetMouseLocation()
+	local point = userInputService:GetMouseLocation()
 
 	if not inShell(refs, point) then
 		if self.config.input.forceclose and Text.callable(self.onCloseRequest) then
 			self.onCloseRequest()
 		else
 			self:collapse()
+		end
+		return
+	end
+
+	if View.pointIn(refs.commandRow, point) or View.pointIn(refs.secondCommandRow, point) then
+		local focused = userInputService:GetFocusedTextBox()
+		if focused then
+			focused:ReleaseFocus()
 		end
 		return
 	end
@@ -188,7 +256,7 @@ end
 local function bindInput(self)
 	local refs = self.refs
 
-	return UIS.InputBegan:Connect(function(input, processed)
+	return userInputService.InputBegan:Connect(function(input, processed)
 		if keyInput(self, input) then
 			return
 		end
@@ -219,6 +287,13 @@ local function bindRefs(self)
 		table.insert(self.connections, conn)
 	end
 
+	refs.mainDragging = Dragging.attach(refs.root, { refs.commandRow }, function(position)
+		self.rootPosition = position
+	end)
+	refs.secondDragging = Dragging.attach(refs.secondRoot, { refs.secondCommandRow }, function(position)
+		self.secondRootPosition = position
+	end)
+
 	track(refs.pillBtn.Activated:Connect(function()
 		self:expand()
 	end))
@@ -234,11 +309,12 @@ local function bindRefs(self)
 			return
 		end
 
-		self.secondOpeningFromAdd = true
 		self.addChatHover = false
+		self:hideSuggestions()
+		detachSecond(self)
 		self.hasSecondChat = true
 		self.activeChannel = 2
-		self:hideSuggestions()
+		setDraggingEnabled(self, true)
 		self:layoutStack(motion.openSmoothTime or motion.expandSmoothTime)
 		task.defer(function()
 			refs.SecondInputBox.Visible = true
@@ -340,9 +416,10 @@ local function baseState(config)
 		scrollSyncToken = {},
 		syncingScroll = {},
 
-		secondOpeningFromAdd = false,
-		secondClosingToAdd = false,
 		layoutTargetWidth = nil,
+		secondRootPosition = nil,
+		rootPosition = nil,
+		secondShadowHiding = false,
 		stackShadowHiding = false,
 		widthRefreshToken = 0,
 		addChatHover = false,
@@ -358,14 +435,50 @@ local function baseState(config)
 		onCloseRequest = nil,
 		onSubmit = nil,
 	}
-end	
+end
 
-function Session.new(gui, config)
+local function append(self, channel, item)
+	channel = ch(channel)
+	if channel == 2 then
+		self.hasSecondChat = true
+		self.hasSecondOutput = true
+	else
+		self.hasOutput = true
+	end
+
+	self.autoScroll[channel] = true
+	History.append(channel == 2 and self.secondHistory or self.history, item)
+	self:markHistoryDirty(channel)
+	self:layoutStack(self.config.motion.outputSmoothTime)
+	task.defer(function()
+		if self.refs then
+			Slide.history(self, channel)
+		end
+	end)
+	self:refreshMeasured(channel)
+	self:queueVisibleWidthRefresh()
+end
+
+--// public api
+local Session = {}
+Session.__index = Session
+
+imports.Suggestions.attach(Session)
+imports.Panel.attach(Session)
+imports.Hints.attach(Session)
+
+function Session.new(gui, config, rootPosition, secondRootPosition)
 	if typeof(gui) ~= "Instance" then
 		return nil
 	end
 
 	local self = setmetatable(baseState(config), Session)
+	if typeof(rootPosition) == "UDim2" then
+		self.rootPosition = rootPosition
+	end
+	if typeof(secondRootPosition) == "UDim2" then
+		self.secondRootPosition = secondRootPosition
+	end
 	View.createTree(self, gui)
 	bindRefs(self)
 
@@ -374,13 +487,20 @@ function Session.new(gui, config)
 		Reveal.open(self)
 		self.placeholderVisible[1] = self.refs.InputBox.Text == ""
 		self:updateShadows()
+		task.delay(self.config.motion.openSmoothTime or self.config.motion.expandSmoothTime, function()
+			if self.isDestroying or not self.refs then
+				return
+			end
+
+			setDraggingEnabled(self, true)
+		end)
 	end)
 
 	return self
 end
 
 function Session:activeInput()
-	local chip = self.activeChip
+	local chip = if Text.callable(self.focusedChip) then self:focusedChip() else self.activeChip
 	if chip and chip.channel == self.activeChannel and typeof(chip.box) == "Instance" and chip.box.Parent then
 		return chip.box
 	end
@@ -570,14 +690,12 @@ function Session:collapse()
 	self.isExpanded = false
 	self:hideSuggestions()
 	self:hideHints()
+	local input = self.refs.InputBox
+	local empty = input.Text == ""
+	input.Visible = not empty
+	self:setPlaceholder(1, empty)
 	Shape.collapse(self)
 
-	task.delay(self.config.motion.textFadeTime * 0.55, function()
-		if not self.isExpanded and typeof(self.refs.InputBox) == "Instance" then
-			self.refs.InputBox.Visible = false
-			self:setPlaceholder(1, self.refs.InputBox.Text == "")
-		end
-	end)
 	task.delay(self.config.motion.collapseSmoothTime, function()
 		if not self.isExpanded and typeof(self.refs.pillBtn) == "Instance" then
 			self.refs.pillBtn.Visible = true
@@ -621,6 +739,7 @@ function Session:clear(channel)
 		self:exitStructured(1)
 		self:exitStructured(2)
 		self.activeChannel = 1
+		setDraggingEnabled(self, true)
 		self:layoutStack(self.config.motion.collapseSmoothTime or self.config.motion.outputSmoothTime)
 		return
 	end
@@ -645,6 +764,7 @@ function Session:clear(channel)
 	self:renderHistory(channel)
 	self:exitStructured(channel)
 	self.activeChannel = channel
+	setDraggingEnabled(self, true)
 	self:layoutStack(self.config.motion.collapseSmoothTime or self.config.motion.outputSmoothTime)
 end
 
@@ -653,7 +773,6 @@ function Session:closeSecond()
 	self.commandHistory[2] = {}
 	self.commandHistoryIndex[2] = nil
 	self.commandDraft[2] = nil
-	self.secondClosingToAdd = true
 	self.hasSecondChat = false
 	self.hasSecondOutput = false
 	self.lineCache[2] = nil
@@ -666,6 +785,8 @@ function Session:closeSecond()
 	self.activeChannel = 1
 	self:hideSuggestions()
 	self:hideHints(2)
+	attachAddChat(self)
+	setDraggingEnabled(self, true)
 	self:layoutStack(self.config.motion.collapseSmoothTime or self.config.motion.outputSmoothTime)
 end
 
@@ -684,6 +805,8 @@ function Session:snapshot()
 		autoScroll = { self.autoScroll[1] ~= false, self.autoScroll[2] ~= false },
 		scroll = { self.savedScroll[1] or 0, self.savedScroll[2] or 0 },
 		width = self.layoutTargetWidth or self.restoredWidth or self:activeWidth(),
+		position = self.rootPosition,
+		secondPosition = self.secondRootPosition,
 		inputText = {
 			typeof(self.refs.InputBox) == "Instance" and self.refs.InputBox.Text or "",
 			typeof(self.refs.SecondInputBox) == "Instance" and self.refs.SecondInputBox.Text or "",
@@ -724,6 +847,12 @@ function Session:restoreSnapshot(data)
 		or { 0, 0 }
 	self.restoredWidth = tonumber(data.width)
 	self.layoutTargetWidth = self.restoredWidth
+	if typeof(data.position) == "UDim2" then
+		self.rootPosition = data.position
+	end
+	if typeof(data.secondPosition) == "UDim2" then
+		self.secondRootPosition = data.secondPosition
+	end
 	self.lineCache = {}
 	self.renderedVersion = {}
 
@@ -757,28 +886,6 @@ function Session:restoreSnapshot(data)
 	end)
 end
 
-local function append(self, channel, item)
-	channel = ch(channel)
-	if channel == 2 then
-		self.hasSecondChat = true
-		self.hasSecondOutput = true
-	else
-		self.hasOutput = true
-	end
-
-	self.autoScroll[channel] = true
-	History.append(channel == 2 and self.secondHistory or self.history, item)
-	self:markHistoryDirty(channel)
-	self:layoutStack(self.config.motion.outputSmoothTime)
-	task.defer(function()
-		if self.refs then
-			Slide.history(self, channel)
-		end
-	end)
-	self:refreshMeasured(channel)
-	self:queueVisibleWidthRefresh()
-end
-
 function Session:appendPending(text, channel)
 	append(self, channel, {
 		kind = "cmd",
@@ -802,6 +909,7 @@ function Session:destroy()
 	self.stackShadowHiding = true
 	self:hideSuggestions()
 	View.clearSuggestionConnections(self)
+	setDraggingEnabled(self, false)
 
 	for _, input in { self.refs.InputBox, self.refs.SecondInputBox } do
 		if typeof(input) == "Instance" then
@@ -820,6 +928,9 @@ function Session:destroy()
 		self.connections = {}
 		if self.refs.root then
 			self.refs.root:Destroy()
+		end
+		if self.refs.secondRoot then
+			self.refs.secondRoot:Destroy()
 		end
 	end)
 end

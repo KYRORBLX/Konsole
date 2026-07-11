@@ -405,11 +405,11 @@ Return `nil` to fall back to the built-in rank store.
 
 Konsole supports a second chat pane.
 
-The second pane is useful when you want to compare outputs, keep one command result visible, or run commands without losing context in the first pane.
+Once opened, each pane can be dragged independently. This is useful when you want to compare outputs, keep one command result visible, or run commands without losing context in the first pane.
 
 `clear` only clears the pane you typed it in. The public `Konsole.clear()` method clears the whole active client.
 
-Konsole saves history, scroll position, and restored width when the UI is closed and reopened.
+Konsole saves history, scroll positions, pane positions, and restored width when the UI is closed and reopened.
 
 ## UI Behavior
 
@@ -467,11 +467,9 @@ Common panel options:
 - `outputWidth`: base width once history exists
 - `maxWidth`: maximum width
 - `height`: collapsed input height
-- `historyMaxHeight`: max first-pane history height
-- `stackHistoryMaxHeight`: max second-pane history height
+- `historyMaxHeight`: max history height for each pane
 - `suggestionHeight`
-- `maxSuggestions`
-- `bottomInset`
+- `suggestionGap`
 - `displayOrder`
 
 Common motion options:

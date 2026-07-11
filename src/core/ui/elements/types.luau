@@ -1,11 +1,12 @@
+--!strict
+
 --[[
 	@name types
 	@author driftingAurora, dullflowerr
 	@time June 30, 2026
 ]]
 
---!strict
-
+--// types
 export type ResultKind = "text" | "table" | "error" | "warn"
 
 export type RenderResult = {

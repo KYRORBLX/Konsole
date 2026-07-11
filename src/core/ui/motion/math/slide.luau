@@ -1,15 +1,17 @@
+--!strict
+
 --[[
 	@name slide
 	@author driftingAurora, dullflowerr
 	@time July 3, 2026
 ]]
 
---!strict
-
+--// imports
 local imports = {
 	Tween = require("./tween"),
 }
 
+--// public api
 local Slide = {}
 
 function Slide.history(session: any, channel: number): ()

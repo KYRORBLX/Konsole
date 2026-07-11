@@ -4,6 +4,7 @@
 	@time June 12, 2026
 ]]
 
+--// imports
 local imports = {
 	Suggest = require("../../motion/suggest"),
 	Providers = require("./providers"),
@@ -11,8 +12,7 @@ local imports = {
 	View = require("../misc/view"),
 }
 
-local Suggestions = {}
-
+--// locals
 local function startsWith(value, prefix)
 	return string.sub(value, 1, #prefix) == prefix
 end
@@ -89,6 +89,20 @@ local function rankList(source, query)
 	return matches
 end
 
+local function placeList(session)
+	local refs = session.refs
+	local root = session.activeChannel == 2 and session.hasSecondChat and refs.secondRoot or refs.root
+	if refs.suggList.Parent == root then
+		return
+	end
+
+	refs.suggList.Parent = root
+	refs.suggShadow.Parent = root
+end
+
+--// public api
+local Suggestions = {}
+
 function Suggestions.attach(Session)
 	function Session:refreshMeasured(channel)
 		self.refreshMeasuredToken[channel] = (self.refreshMeasuredToken[channel] or 0) + 1
@@ -110,7 +124,7 @@ function Suggestions.attach(Session)
 	end
 
 	function Session:resolveSuggestions(text)
-		local chip = self.activeChip
+		local chip = if type(self.focusedChip) == "function" then self:focusedChip() else self.activeChip
 		if chip and type(chip.arg) == "table" then
 			return rankList(imports.Providers.resolve(chip.arg), text), text
 		end
@@ -194,7 +208,7 @@ function Suggestions.attach(Session)
 		end
 
 		local list, query = self:resolveSuggestions(text)
-		local count = math.min(#list, panel.maxSuggestions or 5)
+		local count = #list
 		if count == 0 then
 			self:hideSuggestions()
 			return
@@ -206,6 +220,7 @@ function Suggestions.attach(Session)
 		self.selectedSuggestion = 1
 		self.suggestionQuery = query
 		imports.View.clearSuggestionConnections(self)
+		placeList(self)
 		for index = 1, count do
 			table.insert(self.currentSuggestions, list[index])
 		end
@@ -277,7 +292,7 @@ function Suggestions.attach(Session)
 		end
 		local suggestion: string = rawSuggestion
 
-		local chip = self.activeChip
+		local chip = if type(self.focusedChip) == "function" then self:focusedChip() else self.activeChip
 		if chip and typeof(chip.box) == "Instance" then
 			chip.box.Text = suggestion
 			chip.box.CursorPosition = #suggestion + 1

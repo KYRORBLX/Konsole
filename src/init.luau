@@ -1,11 +1,12 @@
+--!strict
+
 --[[
 	@name Konsole
 	@author driftingAurora, dullflowerr
 	@time June 12, 2026
 ]]
 
---!strict
-
+--// imports
 local imports = {
 	RunService = game:GetService("RunService"),
 
@@ -16,36 +17,27 @@ local imports = {
 
 local Types = require("@self/core/shared/kommand/types")
 
+--// types
 export type Definition = Types.Definition
 export type Resolver = Types.Resolver
 export type Outcome = Types.Outcome
+
 export type Command = Types.Command
 export type Context = Types.Context
 export type Run = Types.Run
 
 type Client = any
 
-local Konsole = {
-	Arguments = imports.core.shared.arguments,
-	Dispatch = imports.core.shared.dispatch,
-	Result = imports.core.ui.render.Result,
-
-	Kommand = imports.core.shared.kommand,
-	Ranks = imports.core.shared.ranks,
-	Chat = imports.core.shared.chat,
-	Render = imports.core.ui.render,
-
-	Config = imports.config,
-}
-
-local registered = false
+--// locals
 local defaultClient: Client = nil
+local registered = false
 
 local function registerBuiltins(): ()
 	if registered then
 		return
 	end
 	registered = true
+
 	imports.cmds.register(imports.core.shared.kommand)
 end
 
@@ -55,17 +47,21 @@ local function getDefaultClient(): Client
 	end
 
 	assert(imports.RunService:IsClient(), "Konsole, can only be created on the client!")
-	registerBuiltins()
 
+	registerBuiltins()
 	local client: Client = imports.core.ui.render.new()
+
 	client:bindRun(function(text: string)
 		return imports.core.shared.dispatch.execute(text)
 	end)
+
 	client:setSuggestions(imports.core.shared.kommand.suggestions())
 	client:setSchemas(imports.core.shared.kommand.schemas())
+
 	imports.core.shared.kommand.watch(function()
 		if defaultClient == client then
 			client:setSuggestions(imports.core.shared.kommand.suggestions())
+
 			client:setSchemas(imports.core.shared.kommand.schemas())
 		end
 	end)
@@ -79,6 +75,20 @@ local function callDefault(method: string, ...: any): ...any
 	return client[method](client, ...)
 end
 
+--// public api
+local Konsole = {
+	Arguments = imports.core.shared.arguments,
+	Dispatch = imports.core.shared.dispatch,
+	Result = imports.core.ui.render.Result,
+
+	Kommand = imports.core.shared.kommand,
+	Ranks = imports.core.shared.ranks,
+	Chat = imports.core.shared.chat,
+
+	Render = imports.core.ui.render,
+	Config = imports.config,
+}
+
 function Konsole.create(options: any?): Client
 	registerBuiltins()
 	return imports.core.ui.render.new(options)
@@ -91,7 +101,9 @@ end
 ]]
 function Konsole.host(serverImplementations: { [string]: Run }?): RemoteFunction?
 	registerBuiltins()
+
 	local implementations = table.clone(imports.cmds.server) :: { [string]: Run }
+
 	for name, callback in serverImplementations or {} :: { [string]: Run } do
 		implementations[name] = callback
 	end

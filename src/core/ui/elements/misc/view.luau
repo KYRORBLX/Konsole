@@ -4,90 +4,13 @@
 	@time June 12, 2026
 ]]
 
+--// imports
 local imports = {
 	Text = require("./text"),
 }
 
+--// locals
 local View = {}
-
-function View.readAsset(value)
-	local text = type(value) == "string" and value or tostring(value or "")
-	text = string.gsub(text, "^rbxassetid://", "")
-	if string.match(text, "^%d+$") then
-		return "rbxassetid://" .. text
-	end
-
-	return ""
-end
-
-function View.make(className, props, parent)
-	local instance = Instance.new(className)
-	for key, value in props or {} do
-		instance[key] = value
-	end
-	instance.Parent = parent
-	return instance
-end
-
-function View.corner(parent, radius)
-	return View.make("UICorner", {
-		CornerRadius = typeof(radius) == "UDim" and radius or UDim.new(0, radius),
-	}, parent)
-end
-
-function View.padding(parent, left, top, right, bottom)
-	return View.make("UIPadding", {
-		PaddingLeft = UDim.new(0, left),
-		PaddingTop = UDim.new(0, top),
-		PaddingRight = UDim.new(0, right or left),
-		PaddingBottom = UDim.new(0, bottom or top),
-	}, parent)
-end
-
-function View.setShadowBounds(shadow, frame)
-	if typeof(shadow) ~= "Instance" or typeof(frame) ~= "Instance" then
-		return
-	end
-
-	local size = frame.Size
-	local position = frame.Position
-	local xOffset = frame.AnchorPoint.X == 0.5 and 0 or -3
-	shadow.AnchorPoint = frame.AnchorPoint
-	shadow.Position = UDim2.new(position.X.Scale, position.X.Offset + xOffset, position.Y.Scale, position.Y.Offset + 3)
-	shadow.Size = UDim2.new(size.X.Scale, size.X.Offset + 6, size.Y.Scale, size.Y.Offset + 8)
-end
-
-function View.richSuggestion(text, matchText, config)
-	local fullText = tostring(text or "")
-	if type(matchText) ~= "string" or matchText == "" then
-		return imports.Text.richEscape(fullText)
-	end
-
-	local startIndex, endIndex = string.find(string.lower(fullText), string.lower(matchText), 1, true)
-	if not startIndex then
-		return imports.Text.richEscape(fullText)
-	end
-
-	local colors = config.color
-	return string.format(
-		'<font color="%s">%s</font><font color="%s"><b>%s</b></font><font color="%s">%s</font>',
-		colors.suggSub,
-		imports.Text.richEscape(string.sub(fullText, 1, startIndex - 1)),
-		colors.suggMatch,
-		imports.Text.richEscape(string.sub(fullText, startIndex, endIndex)),
-		colors.suggSub,
-		imports.Text.richEscape(string.sub(fullText, endIndex + 1))
-	)
-end
-
-function View.clearSuggestionConnections(session)
-	for _, connection in session.suggestionConnections or {} do
-		if connection and connection.Connected then
-			connection:Disconnect()
-		end
-	end
-	session.suggestionConnections = {}
-end
 
 local function createShadow(parent, name, config, zIndex, visible)
 	return View.make("ImageLabel", {
@@ -228,6 +151,89 @@ local function createInputRow(parent, config, refs, prefix, order, visibleTransp
 	return row
 end
 
+--// public api
+function View.readAsset(value)
+	local text = type(value) == "string" and value or tostring(value or "")
+	text = string.gsub(text, "^rbxassetid://", "")
+	if string.match(text, "^%d+$") then
+		return "rbxassetid://" .. text
+	end
+
+	return ""
+end
+
+function View.make(className, props, parent)
+	local instance = Instance.new(className)
+	for key, value in props or {} do
+		instance[key] = value
+	end
+
+	instance.Parent = parent
+	return instance
+end
+
+function View.corner(parent, radius)
+	return View.make("UICorner", {
+		CornerRadius = typeof(radius) == "UDim" and radius or UDim.new(0, radius),
+	}, parent)
+end
+
+function View.padding(parent, left, top, right, bottom)
+	return View.make("UIPadding", {
+		PaddingLeft = UDim.new(0, left),
+		PaddingTop = UDim.new(0, top),
+		PaddingRight = UDim.new(0, right or left),
+		PaddingBottom = UDim.new(0, bottom or top),
+	}, parent)
+end
+
+function View.setShadowBounds(shadow, frame)
+	if typeof(shadow) ~= "Instance" or typeof(frame) ~= "Instance" then
+		return
+	end
+
+	local size = frame.Size
+	local position = frame.Position
+	local xOffset = frame.AnchorPoint.X == 0.5 and 0 or -3
+
+	shadow.AnchorPoint = frame.AnchorPoint
+	shadow.Position = UDim2.new(position.X.Scale, position.X.Offset + xOffset, position.Y.Scale, position.Y.Offset + 3)
+	shadow.Size = UDim2.new(size.X.Scale, size.X.Offset + 6, size.Y.Scale, size.Y.Offset + 8)
+end
+
+function View.richSuggestion(text, matchText, config)
+	local fullText = tostring(text or "")
+	if type(matchText) ~= "string" or matchText == "" then
+		return imports.Text.richEscape(fullText)
+	end
+
+	local startIndex, endIndex = string.find(string.lower(fullText), string.lower(matchText), 1, true)
+	if not startIndex then
+		return imports.Text.richEscape(fullText)
+	end
+
+	local colors = config.color
+	return string.format(
+		'<font color="%s">%s</font><font color="%s"><b>%s</b></font><font color="%s">%s</font>',
+		colors.suggSub,
+		imports.Text.richEscape(string.sub(fullText, 1, startIndex - 1)),
+		colors.suggMatch,
+		imports.Text.richEscape(string.sub(fullText, startIndex, endIndex)),
+		colors.suggSub,
+		imports.Text.richEscape(string.sub(fullText, endIndex + 1))
+	)
+end
+
+function View.clearSuggestionConnections(session)
+	for _, connection in session.suggestionConnections or {} do
+		if connection and connection.Connected then
+			connection:Disconnect()
+		end
+	end
+
+	session.suggestionConnections = {}
+end
+
 function View.createTree(session, gui)
 	local config = session.config
 	local colors = config.color
@@ -237,11 +243,12 @@ function View.createTree(session, gui)
 	local refs = session.refs
 	local pillHeight = panel.height
 	local startWidth = pillHeight
+	local startPosition = UDim2.new(0.5, 0, 1, -(pillHeight / 2))
 
 	local root = View.make("Frame", {
 		Name = "TerminalRoot",
 		AnchorPoint = Vector2.new(0.5, 1),
-		Position = UDim2.new(0.5, 0, 1, -panel.bottomInset),
+		Position = startPosition,
 		Size = UDim2.fromOffset(startWidth, pillHeight),
 		BackgroundTransparency = 1,
 		BorderSizePixel = 0,
@@ -249,10 +256,23 @@ function View.createTree(session, gui)
 		ZIndex = 30,
 	}, gui)
 	refs.root = root
+	local secondRoot = View.make("Frame", {
+		Name = "SecondTerminalRoot",
+		AnchorPoint = Vector2.new(0.5, 1),
+		Position = startPosition,
+		Size = UDim2.fromOffset(startWidth, 0),
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0,
+		ClipsDescendants = false,
+		Visible = false,
+		ZIndex = 30,
+	}, gui)
+	refs.secondRoot = secondRoot
 
 	refs.pillShadow = createShadow(root, "PillShadow", config, 27, true)
 	refs.suggShadow = createShadow(root, "AutofillShadow", config, 27, false)
 	refs.stackShadow = createShadow(root, "StackShadow", config, 26, false)
+	refs.secondShadow = createShadow(secondRoot, "SecondShadow", config, 27, false)
 
 	local suggList = View.make("Frame", {
 		Name = "SuggList",
@@ -395,7 +415,7 @@ function View.createTree(session, gui)
 		ClipsDescendants = true,
 		Visible = false,
 		ZIndex = 29,
-	}, root)
+	}, secondRoot)
 	refs.secondPill = second
 	refs.secondPillCorner = View.corner(second, UDim.new(1, 0))
 	View.padding(second, layout.paddingX, layout.paddingY)

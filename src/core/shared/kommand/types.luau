@@ -1,59 +1,66 @@
+--!strict
+
 --[[
 	@name types
 	@author driftingAurora, dullflowerr
 	@time June 13, 2026
 ]]
 
---!strict
-
-export type Caller = Player?
-
+--// types
 export type Converter = (token: string, caller: Caller) -> (boolean, any)
 
 export type Converters = { [string]: Converter }
 
+export type Caller = Player?
+
 export type Argument = {
-	name: string?,
-	type: string?,
-	default: any,
-	required: boolean?,
-	suggestions: ({ string } | string)?,
+    suggestions: ({ string } | string)?,
+    required: boolean?,
+    default: any,
+
+    name: string?,
+    type: string?,
 }
 
 export type Outcome = {
-	ok: boolean,
-	code: string?,
-	message: string,
+    message: string,
+    code: string?,
+    ok: boolean,
 }
 
 export type DispatchModule = {
-	read remoteName: string,
-	read timeout: number,
-	read host: (serverImplementations: { [string]: Run }?) -> RemoteFunction?,
-	read implement: (name: string, callback: Run) -> (),
-	read execute: (text: any, entity: any) -> any,
+    read host: (serverImplementations: { [string]: Run }?) -> RemoteFunction?,
+    read implement: (name: string, callback: Run) -> (),
+    read execute: (text: any, entity: any) -> any,
+
+    read remoteName: string,
+    read timeout: number,
 }
 
 export type RanksModule = {
-	read define: (id: number, name: string, aliases: { string }?) -> Rank,
-	read resolve: (value: any) -> number?,
-	read label: (id: number) -> string,
-	read list: () -> { Rank },
-	read set: (userId: any, rank: any) -> number,
-	read bind: (fn: Resolver?) -> (),
-	read get: (entity: any) -> number,
-	read allows: (entity: any, required: any) -> boolean,
+    read define: (id: number, name: string, aliases: { string }?) -> Rank,
+    read allows: (entity: any, required: any) -> boolean,
+    read set: (userId: any, rank: any) -> number,
+
+    read resolve: (value: any) -> number?,
+    read get: (entity: any) -> number,
+    read bind: (fn: Resolver?) -> (),
+    
+    read label: (id: number) -> string,
+    read list: () -> { Rank },
 }
 
 export type Context = {
-	entity: Player?,
-	kommand: Command,
-	text: string,
-	dispatch: DispatchModule,
-	ranks: RanksModule,
-	run: (text: any) -> any,
-	reply: (message: any?) -> Outcome,
-	err: (code: any?, message: any?) -> Outcome,
+    dispatch: DispatchModule,
+    ranks: RanksModule,
+    kommand: Command,
+
+    err: (code: any?, message: any?) -> Outcome,
+    reply: (message: any?) -> Outcome,
+    run: (text: any) -> any,
+
+    entity: Player?,
+    text: string,
 }
 
 export type Run = (context: Context, ...any) -> any
@@ -61,32 +68,37 @@ export type Run = (context: Context, ...any) -> any
 export type Watcher = () -> ()
 
 export type Definition = {
-	name: string,
-	rank: (number | string)?,
-	aliases: { string }?,
-	args: { Argument }?,
-	description: string?,
-	cooldown: number?,
-	server: string?,
-	run: Run?,
+    description: string?,
+    aliases: { string }?,
+    cooldown: number?,
+
+    rank: (number | string)?,
+    args: { Argument }?,
+    server: string?,
+
+    name: string,
+    run: Run?,
 }
 
 export type Command = {
-	name: string,
-	rank: number,
-	aliases: { string },
-	args: { Argument },
-	description: string,
-	cooldown: number,
-	server: string?,
-	run: Run?,
+    description: string,
+    aliases: { string },
+    cooldown: number,
+
+    args: { Argument },
+    server: string?,
+    rank: number,
+
+    name: string,
+    run: Run?,
 }
 
 export type Rank = {
-	id: number,
-	name: string,
-	aliases: { string },
-	builtin: boolean?,
+    aliases: { string },
+    builtin: boolean?,
+
+    name: string,
+    id: number,
 }
 
 export type Resolver = (entity: any) -> number?

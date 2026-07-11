@@ -4,6 +4,7 @@
 	@time June 12, 2026
 ]]
 
+--// imports
 local imports = {
 	TextService = game:GetService("TextService"),
 	Workspace = game:GetService("Workspace"),
@@ -13,8 +14,7 @@ local imports = {
 	View = require("../misc/view"),
 }
 
-local Panel = {}
-
+--// locals
 local function measureText(text, config)
 	local size =
 		imports.TextService:GetTextSize(text, config.layout.textSize, config.font.mono, Vector2.new(10000, 10000))
@@ -39,6 +39,9 @@ local function visibleWindow(session, channel)
 
 	return pinned and math.max(0, raw - height) or math.max(0, session.savedScroll[channel] or 0), height
 end
+
+--// public api
+local Panel = {}
 
 function Panel.attach(Session)
 	function Session:channelState(channel)
@@ -94,25 +97,22 @@ function Panel.attach(Session)
 
 	function Session:historyLimit(channel)
 		local panel = self.config.panel
-		local baseLimit = channel == 2 and (panel.stackHistoryMaxHeight or 280) or (panel.historyMaxHeight or 420)
+		local baseLimit = panel.historyMaxHeight or 420
 		local camera = imports.Workspace.CurrentCamera
 		if typeof(camera) ~= "Instance" then
 			return baseLimit
 		end
 
-		local available = camera.ViewportSize.Y - (panel.bottomInset or 24) - (panel.viewportTopInset or 72)
-		if not self.hasSecondChat then
-			return math.max(panel.commandHeight, math.min(baseLimit, available - panel.height))
+		local bottom = camera.ViewportSize.Y
+		local position = channel == 2 and self.secondRootPosition or self.rootPosition
+		if typeof(position) == "UDim2" then
+			bottom = (camera.ViewportSize.Y * position.Y.Scale) + position.Y.Offset
 		end
-
-		if channel == 2 then
-			local bottomAvailable = available - (panel.height * 2) - (panel.stackGap or 8) - (panel.commandHeight or 14)
-			return math.max(panel.commandHeight, math.min(baseLimit, bottomAvailable))
+		if channel == 1 then
+			bottom -= self:stackExtra()
 		end
-
-		local bottomHeight = math.min(self:rawHistoryHeight(2), panel.stackHistoryMaxHeight or 280)
-		local remaining = available - (panel.height * 2) - (panel.stackGap or 8) - bottomHeight
-		return math.max(panel.commandHeight, math.min(baseLimit, remaining))
+		local available = bottom - (panel.viewportTopInset or 24)
+		return math.max(panel.commandHeight, math.min(baseLimit, available - panel.height))
 	end
 
 	function Session:historyHeight(channel)
@@ -302,18 +302,24 @@ function Panel.attach(Session)
 		for _, channel in { 1, 2 } do
 			local input = channel == 2 and self.refs.SecondInputBox or self.refs.InputBox
 			local row = channel == 2 and self.refs.SecondHintRow or self.refs.HintRow
+			local channelPill = channel == 2 and self.refs.secondPill or pill
 
-			if typeof(input) == "Instance" and input.Visible then
+			if typeof(channelPill) == "Instance" and typeof(input) == "Instance" and input.Visible then
 				local field = input.Parent
 				if typeof(field) == "Instance" then
-					local leftEdge = field.AbsolutePosition.X - pill.AbsolutePosition.X
+					local leftEdge = field.AbsolutePosition.X - channelPill.AbsolutePosition.X
 					local textWidth = measureText(tostring(input.Text or ""), self.config).X
 					widest = math.max(widest, leftEdge + textWidth)
 				end
 			end
 
-			if self.structured[channel] and typeof(row) == "Instance" and row.AbsoluteSize.X > 1 then
-				local rightEdge = (row.AbsolutePosition.X + row.AbsoluteSize.X) - pill.AbsolutePosition.X
+			if
+				typeof(channelPill) == "Instance"
+				and self.structured[channel]
+				and typeof(row) == "Instance"
+				and row.AbsoluteSize.X > 1
+			then
+				local rightEdge = (row.AbsolutePosition.X + row.AbsoluteSize.X) - channelPill.AbsolutePosition.X
 				widest = math.max(widest, rightEdge)
 			end
 		end
@@ -354,6 +360,9 @@ function Panel.attach(Session)
 		local panel = self.config.panel
 		if typeof(refs.root) == "Instance" then
 			refs.root.Size = UDim2.fromOffset(width, refs.root.Size.Y.Offset)
+		end
+		if typeof(refs.secondRoot) == "Instance" then
+			refs.secondRoot.Size = UDim2.fromOffset(width, refs.secondRoot.Size.Y.Offset)
 		end
 		if typeof(refs.pill) == "Instance" then
 			refs.pill.Size = UDim2.fromOffset(width, refs.pill.Size.Y.Offset)
@@ -434,8 +443,11 @@ function Panel.attach(Session)
 			return 0
 		end
 
-		local bottomHeight = self.hasSecondChat and self:secondHeight() or self.config.panel.height
-		return bottomHeight + (self.config.panel.stackGap or 8)
+		if self.hasSecondChat then
+			return 0
+		end
+
+		return self.config.panel.height + (self.config.panel.stackGap or 8)
 	end
 
 	function Session:addChatWidth(fullWidth)
@@ -491,18 +503,27 @@ function Panel.attach(Session)
 			end
 		end
 
-		local target = nil
-		if self.hasSecondChat and typeof(refs.secondPill) == "Instance" and refs.secondPill.Visible then
-			target = refs.secondPill
-		elseif typeof(refs.addChatPill) == "Instance" and refs.addChatPill.Visible then
-			target = refs.addChatPill
-		end
+		local target = typeof(refs.addChatPill) == "Instance" and refs.addChatPill.Visible and refs.addChatPill or nil
 		if typeof(refs.stackShadow) == "Instance" then
 			if target then
 				imports.View.setShadowBounds(refs.stackShadow, target)
 				refs.stackShadow.Visible = true
 			elseif not self.stackShadowHiding then
 				refs.stackShadow.Visible = false
+			end
+		end
+
+		local secondTarget = self.hasSecondChat
+				and typeof(refs.secondPill) == "Instance"
+				and refs.secondPill.Visible
+				and refs.secondPill
+			or nil
+		if typeof(refs.secondShadow) == "Instance" then
+			if secondTarget then
+				imports.View.setShadowBounds(refs.secondShadow, secondTarget)
+				refs.secondShadow.Visible = true
+			elseif not self.secondShadowHiding then
+				refs.secondShadow.Visible = false
 			end
 		end
 	end

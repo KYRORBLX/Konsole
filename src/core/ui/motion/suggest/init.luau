@@ -4,6 +4,7 @@
 	@time June 13, 2026
 ]]
 
+--// imports
 local imports = {
 	View = require("../elements/misc/view"),
 	Math = require("./math"),
@@ -11,6 +12,7 @@ local imports = {
 
 local Tween = imports.Math.tween
 
+--// public api
 local Suggest = {}
 
 function Suggest.item(session, label)

@@ -1,11 +1,12 @@
+--!strict
+
 --[[
 	@name text
 	@author driftingAurora, dullflowerr
 	@time June 12, 2026
 ]]
 
---!strict
-
+--// public api
 local Text = {}
 
 function Text.callable(value: any): boolean
@@ -30,7 +31,7 @@ function Text.richEscape(text: any): string
 	out = string.gsub(out, "&", "&amp;")
 	out = string.gsub(out, "<", "&lt;")
 	out = string.gsub(out, ">", "&gt;")
-	out = string.gsub(out, "\"", "&quot;")
+	out = string.gsub(out, '"', "&quot;")
 	return out
 end
 

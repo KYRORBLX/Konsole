@@ -4,17 +4,20 @@
 	@time June 13, 2026
 ]]
 
+--// imports
 local imports = {
 	Math = require("../math"),
 }
 
 local Tween = imports.Math.tween
 
-local Hint = {}
-
+--// locals
 local function rowPosition(offset)
 	return UDim2.new(0, offset, 0.5, 0)
 end
+
+--// public api
+local Hint = {}
 
 function Hint.snap(_session, row, offset)
 	if typeof(row) == "Instance" then

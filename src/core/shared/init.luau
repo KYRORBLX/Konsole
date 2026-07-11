@@ -1,11 +1,12 @@
+--!strict
+
 --[[
 	@name shared
 	@author driftingAurora, dullflowerr
 	@time June 12, 2026
 ]]
 
---!strict
-
+--// imports
 local imports = {
 	Arguments = require("@self/kommand/arguments"),
 	Ranks = require("@self/dispatch/ranks"),
@@ -15,6 +16,7 @@ local imports = {
 	Chat = require("@self/chat"),
 }
 
+--// public api
 local shared = {
 	arguments = imports.Arguments,
 	chat = imports.Chat,

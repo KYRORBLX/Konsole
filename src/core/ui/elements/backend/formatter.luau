@@ -1,23 +1,24 @@
+--!strict
+
 --[[
 	@name formatter
 	@author driftingAurora, dullflowerr
 	@time June 12, 2026
 ]]
 
---!strict
-
+--// imports
 local imports = {
 	Text = require("../misc/text"),
 }
 
 local Types = require("../types")
 
+--// types
 export type RenderResult = Types.RenderResult
 
 type Colors = { [string]: string }
 
-local Formatter = {}
-
+--// locals
 local function cell(row: { [string]: any }?, column: string): string
 	if type(row) ~= "table" then
 		return ""
@@ -71,6 +72,9 @@ local function tableLines(columns: { string }, rows: { { [string]: any } }?): { 
 
 	return out
 end
+
+--// public api
+local Formatter = {}
 
 function Formatter.lines(result: RenderResult?): { string }
 	local lines: { string } = {}

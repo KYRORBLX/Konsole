@@ -4,6 +4,7 @@
 	@time June 13, 2026
 ]]
 
+--// imports
 local imports = {
 	TextService = game:GetService("TextService"),
 	Players = game:GetService("Players"),
@@ -14,8 +15,7 @@ local imports = {
 	View = require("../misc/view"),
 }
 
-local Hints = {}
-
+--// locals
 local function hintRowFor(self, channel)
 	return channel == 2 and self.refs.SecondHintRow or self.refs.HintRow
 end
@@ -95,6 +95,9 @@ local function argValid(arg, text)
 	local ok = convert(text, imports.Players.LocalPlayer)
 	return ok == true
 end
+
+--// public api
+local Hints = {}
 
 function Hints.attach(Session)
 	function Session:setSchemas(map)
@@ -226,6 +229,17 @@ function Hints.attach(Session)
 			table.insert(self.hintConnections[channel], connection)
 		end
 
+		local function focusOnInput(input, index)
+			if
+				input.UserInputType ~= Enum.UserInputType.MouseButton1
+				and input.UserInputType ~= Enum.UserInputType.Touch
+			then
+				return
+			end
+
+			self:focusChip(channel, index)
+		end
+
 		for index, arg in args do
 			local name, typeName = argLabel(arg, index)
 			local frame = imports.View.make("Frame", {
@@ -235,6 +249,7 @@ function Hints.attach(Session)
 				Size = UDim2.fromOffset(0, panel.hintHeight or 20),
 				BackgroundTransparency = 1,
 				BorderSizePixel = 0,
+				Active = true,
 				ZIndex = row.ZIndex,
 			}, row)
 			imports.View.make("UIListLayout", {
@@ -256,6 +271,7 @@ function Hints.attach(Session)
 				TextTransparency = 1,
 				TextSize = layout.hintTextSize or 13,
 				TextYAlignment = Enum.TextYAlignment.Center,
+				Active = true,
 				ZIndex = row.ZIndex + 1,
 			}, frame)
 
@@ -324,9 +340,34 @@ function Hints.attach(Session)
 					self:submit(channel)
 				end
 			end))
+			track(frame.InputBegan:Connect(function(input)
+				focusOnInput(input, index)
+			end))
+			track(nameLabel.InputBegan:Connect(function(input)
+				focusOnInput(input, index)
+			end))
 
 			table.insert(chips, { frame = frame, name = nameLabel, box = box, arg = arg })
 		end
+	end
+
+	function Session:focusedChip()
+		for channel, chips in self.channelChips or {} do
+			for index, chip in chips do
+				if typeof(chip.box) == "Instance" and chip.box:IsFocused() then
+					self.activeChannel = channel
+					self.activeChip = { channel = channel, index = index, arg = chip.arg, box = chip.box }
+					return self.activeChip
+				end
+			end
+		end
+
+		local active = self.activeChip
+		if active and typeof(active.box) == "Instance" and active.box.Parent then
+			return active
+		end
+
+		return nil
 	end
 
 	function Session:revealHints(channel)
