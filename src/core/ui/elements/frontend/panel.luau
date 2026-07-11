@@ -177,11 +177,9 @@ function Panel.attach(Session)
 
         local panel = self.config.panel
 
-        local visibleHeight = self:historyHeight(channel)
         local rawHeight = self:rawHistoryHeight(channel)
         local lineHeight = self:lineHeight()
 
-        row.ScrollBarImageTransparency = rawHeight > visibleHeight + 1 and 0.35 or 1
         row.CanvasSize = UDim2.fromOffset(0, rawHeight)
 
         local lines = self:historyLines(channel)
@@ -268,7 +266,6 @@ function Panel.attach(Session)
         local rawHeight = self:rawHistoryHeight(channel)
         local visibleHeight = self:historyHeight(channel)
 
-        row.ScrollBarImageTransparency = rawHeight > visibleHeight + 1 and 0.35 or 1
         row.CanvasSize = UDim2.fromOffset(0, rawHeight)
 
         self.syncingScroll[channel] = true

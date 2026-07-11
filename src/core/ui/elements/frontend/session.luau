@@ -113,18 +113,21 @@ local function detachSecond(self)
     refs.secondRoot.Visible = true
     refs.secondPill.Visible = true
 
-    refs.secondPill.BackgroundTransparency = refs.addChatPill.BackgroundTransparency
-
     refs.secondDragging.setPosition(rootPosition)
 
     local mainPosition = shifted(rootPosition, -stackExtra)
 
-    Tween.to(refs.root, { Position = mainPosition }, duration)
+    Tween.to(refs.root, { Position = mainPosition }, 0)
 
-    if typeof(refs.secondShadow) == "Instance" then
-        refs.secondShadow.ImageTransparency = refs.stackShadow.ImageTransparency
-        View.setShadowBounds(refs.secondShadow, refs.secondPill)
-    end
+    refs.root.Position = mainPosition
+    self.rootPosition = mainPosition
+
+    refs.pill.Position = UDim2.new(0.5, 0, 1, 0)
+    refs.pillBtn.Position = UDim2.new(0.5, 0, 1, 0)
+
+	if typeof(refs.secondShadow) == "Instance" then
+		View.setShadowBounds(refs.secondShadow, refs.secondPill)
+	end
 
     refs.stackShadow.Visible = false
     refs.addChatPill.Visible = false

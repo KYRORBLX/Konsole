@@ -157,7 +157,10 @@ function Reveal.close(session)
 	local closeTime = motion.collapseSmoothTime or 0.38
     local slideTime = motion.openSmoothTime or closeTime
     
-    local hasSecondChat = session.hasSecondChat
+    local showSecondChat = session.hasSecondChat
+        and refs.secondRoot.Visible
+        and refs.secondPill.Visible
+        and refs.secondPill.Size.Y.Offset > 0
     local width = panel.collapsedWidth
     
     local addChatFadeTime = 0.08
@@ -218,7 +221,7 @@ function Reveal.close(session)
 		Position = UDim2.new(0.5, 0, 1, 0),
     }, closeTime)
     
-	if hasSecondChat then
+	if showSecondChat then
 		refs.secondRoot.Visible = true
         refs.secondPill.Visible = true
         
@@ -264,7 +267,7 @@ function Reveal.close(session)
         Tween.fade(refs.InputBox, { TextTransparency = 1 }, motion.exitFadeTime)
 		Tween.fade(refs.Prompt, { TextTransparency = 1 }, motion.exitFadeTime)
 
-		if hasSecondChat and refs.secondRoot then
+		if showSecondChat and refs.secondRoot then
 			Tween.to(refs.secondRoot, {
 				Position = shifted(secondPosition, motion.openSlideOffset or 44),
 				Size = UDim2.fromOffset(0, panel.height),

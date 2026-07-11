@@ -238,7 +238,7 @@ local function createHistory(parent, config, refs, names, rowZIndex, textZIndex)
         
         ScrollBarImageTransparency = 1,
         BackgroundTransparency = 1,
-        ScrollBarThickness = 2,
+        ScrollBarThickness = 0,
         
         BorderSizePixel = 0,
         LayoutOrder = 1,
