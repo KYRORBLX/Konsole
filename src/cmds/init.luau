@@ -24,14 +24,14 @@ local imports = {
 	kill = require("@self/100/kill"),
 
 	--// U/B
-	ban = require("@self/100/ban"),
-	unban = require("@self/100/unban"),
+    unban = require("@self/100/unban"),
+    ban = require("@self/100/ban"),
 
 	--// T
 	tp = require("@self/50/tp"),
 }
 
-local Types = require("./core/shared/kommand/types")
+local Types = require("./types/sharedTypes")
 
 export type Definition = Types.Definition
 export type Run = Types.Run
@@ -53,8 +53,9 @@ local Cmds = {
 }
 
 function Cmds.register(kommand: any)
-	for index, definition in Cmds.definitions do
-		assert(type(definition.name) == "string", `invalid built-in command at index {index}`)
+    for index, definition in Cmds.definitions do
+        assert(type(definition.name) == "string", `invalid built-in command at index {index}`)
+        
 		kommand.define(definition)
 	end
 end

@@ -11,7 +11,7 @@ local imports = {
 	Players = game:GetService("Players"),
 }
 
-local Types = require("./types")
+local Types = require("../../../types/sharedTypes")
 
 --// types
 export type Converters = Types.Converters

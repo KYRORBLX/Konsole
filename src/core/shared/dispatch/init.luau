@@ -8,19 +8,19 @@
 
 --// imports
 local imports = {
-	ReplicatedStorage = game:GetService("ReplicatedStorage"),
+    ReplicatedStorage = game:GetService("ReplicatedStorage"),
 
-	Players = game:GetService("Players"),
-	RunService = game:GetService("RunService"),
+    Players = game:GetService("Players"),
+    RunService = game:GetService("RunService"),
 
-	Arguments = require("./kommand/arguments"),
-	Table = require("./kommand/table"),
-	Ranks = require("@self/ranks"),
+    Arguments = require("./kommand/arguments"),
+    Table = require("./kommand/table"),
+    Ranks = require("@self/ranks"),
 
-	Kommand = require("./kommand"),
+    Kommand = require("./kommand"),
 }
 
-local Types = require("./kommand/types")
+local Types = require("../../types/sharedTypes")
 
 --// types
 export type Definition = Types.Definition
@@ -32,9 +32,9 @@ export type Run = Types.Run
 
 --// locals
 local Dispatch = {
-	definitionsRemoteName = "KonsoleDefinitions",
-	remoteName = "Konsole",
-	timeout = 8,
+    definitionsRemoteName = "KonsoleDefinitions",
+    remoteName = "Konsole",
+    timeout = 8,
 }
 
 local cooldowns: { [string]: { [string]: number } } = {}
@@ -44,146 +44,146 @@ local definitionsRemote: RemoteEvent? = nil
 local remote: RemoteFunction? = nil
 
 local function ok(message: any?): Outcome
-	return { ok = true, message = tostring(message or "Command completed.") }
+    return { ok = true, message = tostring(message or "Command completed.") }
 end
 
 local function fail(code: any?, message: any?): Outcome
-	return { ok = false, code = tostring(code or "error"), message = tostring(message or "Command failed.") }
+    return { ok = false, code = tostring(code or "error"), message = tostring(message or "Command failed.") }
 end
 
 local function contextFor(kommand: Command, entity: any, text: string): Context
-	return {
-		dispatch = Dispatch,
-		kommand = kommand,
-		entity = entity,
+    return {
+        dispatch = Dispatch,
+        kommand = kommand,
+        entity = entity,
 
-		ranks = imports.Ranks,
+        ranks = imports.Ranks,
 
-		run = function(nextText: any): any
-			return Dispatch.execute(nextText, entity)
-		end,
+        run = function(nextText: any): any
+            return Dispatch.execute(nextText, entity)
+        end,
 
-		text = text,
-		reply = ok,
-		err = fail,
-	}
+        text = text,
+        reply = ok,
+        err = fail,
+    }
 end
 
 local function cooldownKey(entity: any): string
 
-	if typeof(entity) == "Instance" and entity:IsA("Player") then
-		return tostring(entity.UserId)
-	end
+    if typeof(entity) == "Instance" and entity:IsA("Player") then
+        return tostring(entity.UserId)
+    end
 
-	return tostring(entity or "server")
+    return tostring(entity or "server")
 end
 
 local function checkCooldown(kommand: Command, entity: any): Outcome?
-	if kommand.cooldown <= 0 then
-		return nil
-	end
+    if kommand.cooldown <= 0 then
+        return nil
+    end
 
-	local bucket = cooldowns[kommand.name]
-	local key = cooldownKey(entity)
-	local now = os.clock()
-	
-	local nextAllowed = bucket and bucket[key] or 0
+    local bucket = cooldowns[kommand.name]
+    local key = cooldownKey(entity)
+    local now = os.clock()
 
-	if nextAllowed > now then
-		return fail("cooldown", `"{kommand.name}" is on cooldown for {math.ceil(nextAllowed - now)}s`)
-	end
+    local nextAllowed = bucket and bucket[key] or 0
 
-	if not bucket then
-		bucket = {}
-		cooldowns[kommand.name] = bucket
-	end
+    if nextAllowed > now then
+        return fail("cooldown", `"{kommand.name}" is on cooldown for {math.ceil(nextAllowed - now)}s`)
+    end
 
-	bucket[key] = now + kommand.cooldown
+    if not bucket then
+        bucket = {}
+        cooldowns[kommand.name] = bucket
+    end
 
-	return nil
+    bucket[key] = now + kommand.cooldown
+
+    return nil
 end
 
 local function runDefinition(kommand: Command, tokens: { string }, entity: any, text: string): any
 
-	local callback = kommand.run
+    local callback = kommand.run
 
-	if imports.RunService:IsServer() and kommand.server then
-		callback = implementations[kommand.server] or callback
-	end
+    if imports.RunService:IsServer() and kommand.server then
+        callback = implementations[kommand.server] or callback
+    end
 
-	if not imports.Table.callable(callback) then
-		return fail("not-implemented", `"{kommand.name}" has no implementation on this side`)
-	end
+    if not imports.Table.callable(callback) then
+        return fail("not-implemented", `"{kommand.name}" has no implementation on this side`)
+    end
 
-	local parsed, values = imports.Arguments.parse(kommand.args, tokens, entity)
+    local parsed, values = imports.Arguments.parse(kommand.args, tokens, entity)
 
-	if not parsed then
-		return fail("bad-argument", values)
-	end
+    if not parsed then
+        return fail("bad-argument", values)
+    end
 
-	local cooldown = checkCooldown(kommand, entity)
+    local cooldown = checkCooldown(kommand, entity)
 
-	if cooldown then
-		return cooldown
-	end
+    if cooldown then
+        return cooldown
+    end
 
-	local succeeded, result =
-		pcall(callback :: Run, contextFor(kommand, entity, text), table.unpack(values, 1, values.n or #values))
-	if not succeeded then
-		return fail("command-error", tostring(result))
-	end
+    local succeeded, result =
+        pcall(callback :: Run, contextFor(kommand, entity, text), table.unpack(values, 1, values.n or #values))
+    if not succeeded then
+        return fail("command-error", tostring(result))
+    end
 
-	if type(result) == "table" then
-		return result
-	end
+    if type(result) == "table" then
+        return result
+    end
 
-	if result == nil then
-		return ok()
-	end
+    if result == nil then
+        return ok()
+    end
 
-	return ok(tostring(result))
+    return ok(tostring(result))
 end
 
 local function ensureRemote(): RemoteFunction?
-	if remote and remote.Parent then
-		return remote
-	end
+    if remote and remote.Parent then
+        return remote
+    end
 
-	if imports.RunService:IsServer() then
-		
-		local bridge = imports.ReplicatedStorage:FindFirstChild(Dispatch.remoteName) or Instance.new("RemoteFunction")
-		
-		bridge.Parent = imports.ReplicatedStorage
-		bridge.Name = Dispatch.remoteName
+    if imports.RunService:IsServer() then
 
-		remote = bridge :: RemoteFunction
+        local bridge = imports.ReplicatedStorage:FindFirstChild(Dispatch.remoteName) or Instance.new("RemoteFunction")
 
-	else
-		remote = imports.ReplicatedStorage:WaitForChild(Dispatch.remoteName, Dispatch.timeout) :: RemoteFunction?
-	end
+        bridge.Parent = imports.ReplicatedStorage
+        bridge.Name = Dispatch.remoteName
 
-	return remote
+        remote = bridge :: RemoteFunction
+
+    else
+        remote = imports.ReplicatedStorage:WaitForChild(Dispatch.remoteName, Dispatch.timeout) :: RemoteFunction?
+    end
+
+    return remote
 end
 
 local function ensureDefinitionsRemote(): RemoteEvent?
-	if definitionsRemote and definitionsRemote.Parent then
-		return definitionsRemote
-	end
+    if definitionsRemote and definitionsRemote.Parent then
+        return definitionsRemote
+    end
 
-	if imports.RunService:IsServer() then
-		local bridge = imports.ReplicatedStorage:FindFirstChild(Dispatch.definitionsRemoteName)
-			or Instance.new("RemoteEvent")
+    if imports.RunService:IsServer() then
+        local bridge = imports.ReplicatedStorage:FindFirstChild(Dispatch.definitionsRemoteName)
+            or Instance.new("RemoteEvent")
 
-		bridge.Name = Dispatch.definitionsRemoteName
-		bridge.Parent = imports.ReplicatedStorage
-		definitionsRemote = bridge :: RemoteEvent
+        bridge.Name = Dispatch.definitionsRemoteName
+        bridge.Parent = imports.ReplicatedStorage
+        definitionsRemote = bridge :: RemoteEvent
 
-	else
-		definitionsRemote =
-			imports.ReplicatedStorage:WaitForChild(Dispatch.definitionsRemoteName, Dispatch.timeout) :: RemoteEvent?
-	end
+    else
+        definitionsRemote =
+            imports.ReplicatedStorage:WaitForChild(Dispatch.definitionsRemoteName, Dispatch.timeout) :: RemoteEvent?
+    end
 
-	return definitionsRemote
+    return definitionsRemote
 end
 
 --[[ 
@@ -194,45 +194,45 @@ end
 	@time June 4, 2026 11:52 AM
 ]]
 local function currentDefinitions(): { Definition }
-	local out: { Definition } = {}
+    local out: { Definition } = {}
 
-	for _, kommand in imports.Kommand.list() do
-		table.insert(out, {
-			description = kommand.description,
+    for _, kommand in imports.Kommand.list() do
+        table.insert(out, {
+            description = kommand.description,
 
-			cooldown = kommand.cooldown,
-			aliases = kommand.aliases,
-			server = kommand.server,
+            cooldown = kommand.cooldown,
+            aliases = kommand.aliases,
+            server = kommand.server,
 
-			name = kommand.name,
-			rank = kommand.rank,
-			args = kommand.args,
-		})
-	end
-	
-	return out
+            name = kommand.name,
+            rank = kommand.rank,
+            args = kommand.args,
+        })
+    end
+
+    return out
 end
 
 local function invokeServer(text: string): any
-	local bridge = ensureRemote()
+    local bridge = ensureRemote()
 
-	if not bridge then
-		return fail("no-bridge", "Command bridge is unavailable.")
-	end
+    if not bridge then
+        return fail("no-bridge", "Command bridge is unavailable.")
+    end
 
-	local succeeded, response = pcall(function()
-		return (bridge :: RemoteFunction):InvokeServer(text)
-	end)
+    local succeeded, response = pcall(function()
+        return (bridge :: RemoteFunction):InvokeServer(text)
+    end)
 
-	if not succeeded then
-		return fail("network-error", tostring(response))
-	end
-	
-	if type(response) == "table" then
-		return response
-	end
+    if not succeeded then
+        return fail("network-error", tostring(response))
+    end
 
-	return ok(tostring(response or ""))
+    if type(response) == "table" then
+        return response
+    end
+
+    return ok(tostring(response or ""))
 end
 
 --// public api
@@ -242,44 +242,44 @@ end
 	@time June 22, 2026 3:08 PM
 ]]
 function Dispatch.host(serverImplementations: { [string]: Run }?)
-	assert(imports.RunService:IsServer(), "Dispatch.host can only be called on the server")
+    assert(imports.RunService:IsServer(), "Dispatch.host can only be called on the server")
 
-	for name, callback in serverImplementations or {} :: { [string]: Run } do
-		if imports.Table.callable(callback) then
-			implementations[name] = callback
-		end
-	end
+    for name, callback in serverImplementations or {} :: { [string]: Run } do
+        if imports.Table.callable(callback) then
+            implementations[name] = callback
+        end
+    end
 
-	local bridge = ensureRemote()
+    local bridge = ensureRemote()
 
-	if bridge then
-		bridge.OnServerInvoke = function(player, text)
+    if bridge then
+        bridge.OnServerInvoke = function(player, text)
 
-			return Dispatch.execute(text, player)
-		end
-	end
+            return Dispatch.execute(text, player)
+        end
+    end
 
-	local definitionsBridge = ensureDefinitionsRemote()
+    local definitionsBridge = ensureDefinitionsRemote()
 
-	if definitionsBridge then
-		definitionsBridge.OnServerEvent:Connect(function(player)
-			definitionsBridge:FireClient(player, currentDefinitions())
-		end)
+    if definitionsBridge then
+        definitionsBridge.OnServerEvent:Connect(function(player)
+            definitionsBridge:FireClient(player, currentDefinitions())
+        end)
 
-		imports.Kommand.watch(function()
-			definitionsBridge:FireAllClients(currentDefinitions())
-		end)
-	end
+        imports.Kommand.watch(function()
+            definitionsBridge:FireAllClients(currentDefinitions())
+        end)
+    end
 
-	return bridge
+    return bridge
 end
 
 function Dispatch.implement(name: string, callback: Run)
 
-	assert(type(name) == "string" and name ~= "", "implementation name must be a string")
-	assert(imports.Table.callable(callback), "implementation must be callable")
-	
-	implementations[name] = callback
+    assert(type(name) == "string" and name ~= "", "implementation name must be a string")
+    assert(imports.Table.callable(callback), "implementation must be callable")
+
+    implementations[name] = callback
 end
 
 --[[
@@ -289,33 +289,33 @@ end
 	@time June 9, 2026 7:41 PM
 ]]
 function Dispatch.execute(text: any, entity: any): any
-	text = tostring(text or "")
+    text = tostring(text or "")
 
-	local name, tokens = imports.Arguments.split(text)
+    local name, tokens = imports.Arguments.split(text)
 
-	if not name then
-		return fail("empty", "Type a command.")
-	end
+    if not name then
+        return fail("empty", "Type a command.")
+    end
 
-	local kommand = imports.Kommand.find(name)
+    local kommand = imports.Kommand.find(name)
 
-	if not kommand then
-		return fail("unknown-command", `unknown command "{name}"`)
-	end
+    if not kommand then
+        return fail("unknown-command", `unknown command "{name}"`)
+    end
 
-	if imports.RunService:IsServer() then
-		if not imports.Ranks.allows(entity, kommand.rank) then
-			return fail("not-authorized", `"{kommand.name}" requires rank {kommand.rank}+`)
-		end
-		
-		return runDefinition(kommand, tokens, entity, text)
-	end
+    if imports.RunService:IsServer() then
+        if not imports.Ranks.allows(entity, kommand.rank) then
+            return fail("not-authorized", `"{kommand.name}" requires rank {kommand.rank}+`)
+        end
 
-	if kommand.server then
-		return invokeServer(text)
-	end
+        return runDefinition(kommand, tokens, entity, text)
+    end
 
-	return runDefinition(kommand, tokens, imports.Players.LocalPlayer, text)
+    if kommand.server then
+        return invokeServer(text)
+    end
+
+    return runDefinition(kommand, tokens, imports.Players.LocalPlayer, text)
 end
 
 --[[ 
@@ -327,25 +327,25 @@ end
     @time June 27, 2026 1:15 AM
 ]]
 if imports.RunService:IsClient() then
-	task.spawn(function()
-		local bridge = ensureDefinitionsRemote()
-		
-		if not bridge then
-			return
-		end
+    task.spawn(function()
+        local bridge = ensureDefinitionsRemote()
 
-		bridge.OnClientEvent:Connect(function(list: any)
-			if type(list) ~= "table" then
-				return
-			end
-			
-			for _, definition in list :: { Definition } do
-				imports.Kommand.define(definition)
-			end
-		end)
+        if not bridge then
+            return
+        end
 
-		bridge:FireServer()
-	end)
+        bridge.OnClientEvent:Connect(function(list: any)
+            if type(list) ~= "table" then
+                return
+            end
+
+            for _, definition in list :: { Definition } do
+                imports.Kommand.define(definition)
+            end
+        end)
+
+        bridge:FireServer()
+    end)
 end
 
 return table.freeze(Dispatch)

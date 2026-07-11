@@ -15,7 +15,7 @@ local imports = {
 	core = require("@self/core"),
 }
 
-local Types = require("@self/core/shared/kommand/types")
+local Types = require("@self/types/sharedTypes")
 
 --// types
 export type Definition = Types.Definition

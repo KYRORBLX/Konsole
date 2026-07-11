@@ -23,13 +23,15 @@ function Tween.to(
 	style: Enum.EasingStyle?,
 	direction: Enum.EasingDirection?
 ): Tween?
+    
 	if typeof(instance) ~= "Instance" then
 		return nil
 	end
 
 	local info =
 		TweenInfo.new(tonumber(duration) or 0.18, style or imports.Ease.style, direction or imports.Ease.direction)
-	local tween = imports.TweenService:Create(instance, info, props)
+    
+    local tween = imports.TweenService:Create(instance, info, props)
 	tween:Play()
 	return tween
 end

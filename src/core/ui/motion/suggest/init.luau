@@ -12,6 +12,13 @@ local imports = {
 
 local Tween = imports.Math.tween
 
+local function suggestionWidth(session)
+	local refs = session.refs
+	local channel = refs.suggList.Parent == refs.secondRoot and 2 or 1
+
+	return session:activeWidth(channel)
+end
+
 --// public api
 local Suggest = {}
 
@@ -27,31 +34,37 @@ end
 
 function Suggest.reveal(session, count)
 	local refs = session.refs
-	local config = session.config
-	local panel = config.panel
+    local config = session.config
+    
+    local panel = config.panel
 	local suggList = refs.suggList
 
-	suggList.Visible = true
-	suggList.Position = UDim2.new(0.5, 0, 0, -1)
-	if typeof(refs.suggShadow) == "Instance" then
+    suggList.Position = UDim2.new(0.5, 0, 0, -1)
+    suggList.Visible = true
+    
+    if typeof(refs.suggShadow) == "Instance" then
+        
 		refs.suggShadow.Visible = not session.isClosing
-		refs.suggShadow.ImageTransparency = 1
+        refs.suggShadow.ImageTransparency = 1
+        
 		imports.View.setShadowBounds(refs.suggShadow, suggList)
 		Tween.to(refs.suggShadow, {
 			ImageTransparency = config.transparency.shadow,
 		}, config.motion.listSmoothTime)
-	end
+    end
+    
 	Tween.to(suggList, {
-		Position = UDim2.new(0.5, 0, 0, -panel.suggestionGap),
-		Size = UDim2.fromOffset(session:activeWidth(), (count * panel.suggestionHeight) + 4),
-		BackgroundTransparency = config.transparency.suggPanel,
+        Size = UDim2.fromOffset(suggestionWidth(session), (count * panel.suggestionHeight) + 4),
+        BackgroundTransparency = config.transparency.suggPanel,
+        Position = UDim2.new(0.5, 0, 0, -panel.suggestionGap),
 	}, config.motion.listSmoothTime)
 end
 
 function Suggest.hide(session)
 	local refs = session.refs
 	local config = session.config
-	local suggList = refs.suggList
+    local suggList = refs.suggList
+    
 	local token = session.suggestToken
 	local slide = config.motion.textSlideOffset or 10
 
@@ -68,28 +81,33 @@ function Suggest.hide(session)
 		imports.View.setShadowBounds(refs.suggShadow, suggList)
 		refs.suggShadow.Visible = not session.isClosing
 		Tween.to(refs.suggShadow, { ImageTransparency = 1 }, config.motion.listSmoothTime)
-	end
+    end
+    
 	Tween.to(suggList, {
 		Position = UDim2.new(0.5, 0, 0, config.panel.suggestionGap),
-		Size = UDim2.fromOffset(session:activeWidth(), 0),
+		Size = UDim2.fromOffset(suggestionWidth(session), 0),
 		BackgroundTransparency = 1,
 	}, config.motion.listSmoothTime)
 
 	task.delay(config.motion.exitFadeTime, function()
 		if token ~= session.suggestToken or typeof(suggList) ~= "Instance" then
 			return
-		end
-		suggList.Visible = false
-		session.suggestionsHiding = false
+        end
+        
+        session.suggestionsHiding = false
+        suggList.Visible = false
+        
 		if typeof(refs.suggShadow) == "Instance" then
 			refs.suggShadow.Visible = false
 			refs.suggShadow.ImageTransparency = 1
-		end
+        end
+        
 		for _, child in suggList:GetChildren() do
 			if child:IsA("TextButton") then
 				child:Destroy()
 			end
-		end
+        end
+        
 		session:updateShadows()
 	end)
 end

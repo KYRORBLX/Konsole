@@ -1,7 +1,7 @@
 --!strict
 
 --[[
-	@name types
+	@name uiTypes
 	@author driftingAurora, dullflowerr
 	@time June 30, 2026
 ]]
@@ -10,39 +10,44 @@
 export type ResultKind = "text" | "table" | "error" | "warn"
 
 export type RenderResult = {
-	ok: boolean,
-	kind: ResultKind,
-	code: string?,
-	title: string,
-	message: string,
-	width: string,
-	columns: { string }?,
 	rows: { { [string]: any } },
+	code: string?,
+	ok: boolean,
+
+	columns: { string }?,
 	hints: { string }?,
+	kind: ResultKind,
+	message: string,
+	title: string,
+	width: string,
 }
 
 export type ResultOptions = {
-	kind: ResultKind?,
-	title: string?,
-	message: string?,
-	width: string?,
 	columns: { string }?,
-	rows: { { [string]: any } }?,
+	message: string?,
+
+	title: string?,
+	width: string?,
+
 	hints: { string }?,
+	kind: ResultKind?,
+
+	rows: { { [string]: any } }?,
 }
 
 export type HistoryItemKind = "cmd" | "ok" | "warn" | "err"
 
 export type HistoryItem = {
 	kind: HistoryItemKind,
-	text: string,
 	wide: boolean?,
+	text: string,
 }
 
 export type DisplayLine = {
 	plain: string,
 	chars: number,
 	width: number,
+
 	rich: string,
 }
 

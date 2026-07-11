@@ -12,7 +12,7 @@ local imports = {
 	Table = require("@self/table"),
 }
 
-local Types = require("@self/types")
+local Types = require("../../types/sharedTypes")
 
 --// types
 export type Definition = Types.Definition

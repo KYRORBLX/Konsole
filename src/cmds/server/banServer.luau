@@ -10,7 +10,7 @@ local imports = {
 	Players = game:GetService("Players"),
 }
 
-local Types = require("../../core/shared/kommand/types")
+local Types = require("../../types/sharedTypes")
 
 local bans: { [number]: string } = {}
 local Server = {}

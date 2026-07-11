@@ -7,7 +7,7 @@
 ]]
 
 --// imports
-local Types = require("../types")
+local Types = require("../../../../types/uiTypes")
 
 --// types
 export type ResultOptions = Types.ResultOptions
@@ -55,9 +55,9 @@ function Result.err(code: any?, message: any?, options: ResultOptions?): RenderR
 
     return {
         columns = type(opts.columns) == "table" and opts.columns or nil,
-        message = tostring(message or "Unable to execute command."),
-
         hints = type(opts.hints) == "table" and opts.hints or nil,
+
+		message = tostring(message or "Unable to execute command."),
         title = opts.title or "Command failed",
         width = opts.width or "normal",
 

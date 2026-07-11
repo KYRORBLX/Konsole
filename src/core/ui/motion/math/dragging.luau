@@ -14,6 +14,8 @@ local imports = {
 
 --// types
 type TargetChanged = (UDim2) -> ()
+type DragMoved = () -> ()
+
 export type Binding = {
 	setEnabled: (boolean) -> (),
 	setPosition: (UDim2) -> (),
@@ -25,11 +27,14 @@ local smoothTime = 0.08
 
 local function createDetector(handle: GuiObject): UIDragDetector
 	local detector = Instance.new("UIDragDetector")
-	detector.Name = "Dragging"
-	detector.DragStyle = Enum.UIDragDetectorDragStyle.TranslatePlane
-	detector.ResponseStyle = Enum.UIDragDetectorResponseStyle.CustomScale
+    detector.Name = "Dragging"
+    
+    detector.ResponseStyle = Enum.UIDragDetectorResponseStyle.CustomScale
+    detector.DragStyle = Enum.UIDragDetectorDragStyle.TranslatePlane
+	
 	detector.Enabled = false
-	detector.Parent = handle
+    detector.Parent = handle
+    
 	return detector
 end
 
@@ -65,14 +70,22 @@ end
 --// public api
 local Dragging = {}
 
-function Dragging.attach(root: GuiObject, handles: { GuiObject }, targetChanged: TargetChanged?): Binding
+function Dragging.attach(
+	root: GuiObject,
+	handles: { GuiObject },
+	targetChanged: TargetChanged?,
+	dragMoved: DragMoved?
+): Binding
+    
 	local bounds = root.Parent
 	assert(bounds and bounds:IsA("GuiBase2d"), "drag root needs a 2d parent")
 
 	local connections: { RBXScriptConnection } = {}
-	local detectors: { UIDragDetector } = {}
-	local target = root.Position
-	local velocity = Vector2.zero
+    local detectors: { UIDragDetector } = {}
+    
+    local velocity = Vector2.zero
+    local target = root.Position
+	
 	local destroyed = false
 	local moving = false
 
@@ -95,9 +108,11 @@ function Dragging.attach(root: GuiObject, handles: { GuiObject }, targetChanged:
 			position = positionFrom(point, boundsSize)
 		end
 
-		target = position
+        target = position
+        
 		root.Position = position
-		velocity = Vector2.zero
+        velocity = Vector2.zero
+        
 		moving = false
 		if targetChanged then
 			targetChanged(position)
@@ -109,15 +124,18 @@ function Dragging.attach(root: GuiObject, handles: { GuiObject }, targetChanged:
 		for _, detector in detectors do
 			detector.Enabled = enabled
 		end
-		moving = false
-		target = root.Position
-		velocity = Vector2.zero
+        moving = false
+        
+        velocity = Vector2.zero
+        target = root.Position
 	end
 
 	for _, handle in handles do
 		local detector = createDetector(handle)
 		local inputOrigin = Vector2.zero
-		local pointOrigin = Vector2.zero
+        local pointOrigin = Vector2.zero
+        
+		local moved = false
 
 		table.insert(detectors, detector)
 		track(detector.DragStart:Connect(function(inputPosition)
@@ -126,11 +144,15 @@ function Dragging.attach(root: GuiObject, handles: { GuiObject }, targetChanged:
 				return
 			end
 
-			inputOrigin = inputPosition
-			pointOrigin = pointFrom(root.Position, boundsSize)
-			target = root.Position
-			velocity = Vector2.zero
+            pointOrigin = pointFrom(root.Position, boundsSize)
+            inputOrigin = inputPosition
+			
+            velocity = Vector2.zero
+            target = root.Position
+            
 			moving = false
+            moved = false
+            
 			if targetChanged then
 				targetChanged(target)
 			end
@@ -139,6 +161,13 @@ function Dragging.attach(root: GuiObject, handles: { GuiObject }, targetChanged:
 			local boundsSize = bounds.AbsoluteSize
 			if boundsSize.X <= 0 or boundsSize.Y <= 0 then
 				return
+			end
+
+			if not moved then
+				moved = true
+				if dragMoved then
+					dragMoved()
+				end
 			end
 
 			local point = clampPoint(pointOrigin + inputPosition - inputOrigin, root, boundsSize)
@@ -160,11 +189,13 @@ function Dragging.attach(root: GuiObject, handles: { GuiObject }, targetChanged:
 		local nextPoint, nextVelocity =
 			imports.TweenService:SmoothDamp(currentPoint, targetPoint, velocity, smoothTime, math.huge, deltaTime)
 
-		nextPoint = nextPoint :: Vector2
-		velocity = nextVelocity :: Vector2
+        velocity = nextVelocity :: Vector2
+        nextPoint = nextPoint :: Vector2
+        
 		if (targetPoint - nextPoint).Magnitude <= stopDistance then
-			nextPoint = targetPoint
-			velocity = Vector2.zero
+            velocity = Vector2.zero
+            nextPoint = targetPoint
+            
 			moving = false
 		end
 
@@ -181,8 +212,8 @@ function Dragging.attach(root: GuiObject, handles: { GuiObject }, targetChanged:
 	end))
 
 	return table.freeze({
-		setEnabled = setEnabled,
-		setPosition = setPosition,
+        setPosition = setPosition,
+        setEnabled = setEnabled,
 	}) :: Binding
 end
 

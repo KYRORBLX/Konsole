@@ -6,7 +6,7 @@
 
 --!strict
 
-local Types = require("../core/shared/kommand/types")
+local Types = require("../types/sharedTypes")
 
 export type Run = Types.Run
 

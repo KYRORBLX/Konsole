@@ -15,7 +15,7 @@ local imports = {
 }
 
 local ConfigModule = require("../../../../config")
-local Types = require("../types")
+local Types = require("../../../../types/uiTypes")
 
 --// types
 export type HistoryItemKind = Types.HistoryItemKind

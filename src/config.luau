@@ -78,7 +78,7 @@ export type MotionGroup = {
 
 export type InputGroup = {
 	activationKeys: { Enum.KeyCode },
-
+	
 	activationPriority: number,
 	forceclose: boolean,
 
@@ -124,9 +124,8 @@ export type TransparencyGroup = {
 }
 
 export type CommandsGroup = {
-	aliases: { [string]: string },
-	
 	defaultLimit: number,
+	aliases: { [string]: string },
 }
 
 export type MergedConfig = {
@@ -214,8 +213,8 @@ Config.groups = {
 		errorRich = "#FF7E7E",
 		mutedRich = "#9F9F9F",
 
-		warnRich = "#FFD36A",
-		suggMatch = "#FFFFFF",
+        suggMatch = "#FFFFFF",
+        warnRich = "#FFD36A",
 		suggSub = "#CFCFCF",
 	},
 

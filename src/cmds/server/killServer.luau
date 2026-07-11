@@ -6,7 +6,7 @@
 
 --!strict
 
-local Types = require("../../core/shared/kommand/types")
+local Types = require("../../types/sharedTypes")
 
 return function(context: Types.Context, target: Player?)
 	local character = target and target.Character
