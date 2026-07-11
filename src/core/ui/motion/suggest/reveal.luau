@@ -113,10 +113,18 @@ function Reveal.open(session)
 	refs.secondPill.Visible = true
     
     
-	Tween.to(refs.secondRoot, {
-        Size = UDim2.fromOffset(panel.collapsedWidth, panel.height),
-        Position = secondPosition,
-    }, openTime)
+	if session.secondDetached then
+        refs.secondRoot.Position = secondPosition
+
+        Tween.to(refs.secondRoot, {
+            Size = UDim2.fromOffset(panel.collapsedWidth, panel.height),
+        }, openTime)
+    else
+        Tween.to(refs.secondRoot, {
+            Size = UDim2.fromOffset(panel.collapsedWidth, panel.height),
+            Position = secondPosition,
+        }, openTime)
+    end
     
 	Tween.to(refs.secondPill, {
         Size = UDim2.fromOffset(panel.collapsedWidth, panel.height),

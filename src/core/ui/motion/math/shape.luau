@@ -326,6 +326,11 @@ function Shape.layout(session, duration, targetWidth)
         end
         
 		session:syncWidths(width)
+
+		if session.refs.mainDragging then
+			session.refs.mainDragging.setPosition(session.refs.root.Position)
+		end
+
 		session:updateShadows()
 	end)
 end
@@ -348,6 +353,11 @@ function Shape.layoutDetachedSecond(session, duration, targetWidth)
 	task.delay(time, function()
 		if session.secondDetached then
 			session:syncSecondWidth(width)
+
+			if session.refs.secondDragging then
+				session.refs.secondDragging.setPosition(session.refs.secondRoot.Position)
+			end
+
 			session:updateShadows()
 		end
 	end)

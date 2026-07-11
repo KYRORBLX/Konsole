@@ -861,7 +861,26 @@ function Session:expand()
         self.activeChannel = 1
     end
 
+    local duration = self.config.motion.expandSmoothTime
+    local rootPosition = typeof(self.rootPosition) == "UDim2" and self.rootPosition or self.refs.root.Position
+
+    Tween.to(self.refs.root, { Position = rootPosition }, duration)
+
+    if self.hasSecondChat then
+        local secondPosition = self.secondDetached
+                and (typeof(self.secondRootPosition) == "UDim2" and self.secondRootPosition or self.refs.secondRoot.Position)
+            or rootPosition
+
+        self.secondRootPosition = secondPosition
+
+        Tween.to(self.refs.secondRoot, { Position = secondPosition }, duration)
+    end
+
     Shape.expand(self)
+
+    if self.secondDetached and self.hasSecondChat then
+        Shape.layoutDetachedSecond(self, duration, self:activeWidth(2))
+    end
 
     task.defer(function()
         local input = self:activeInput()
@@ -1058,8 +1077,8 @@ function Session:snapshot()
         position = self.rootPosition,
 
         inputText = {
-            typeof(self.refs.SecondInputBox) == "Instance" and self.refs.SecondInputBox.Text or "",
             typeof(self.refs.InputBox) == "Instance" and self.refs.InputBox.Text or "",
+            typeof(self.refs.SecondInputBox) == "Instance" and self.refs.SecondInputBox.Text or "",
         },
 
         width = self.layoutTargetWidth or self.restoredWidth or self:activeWidth(),
@@ -1154,16 +1173,14 @@ function Session:restoreSnapshot(data)
         self:renderHistory(1)
         self:renderHistory(2)
 
-        self:layoutStack(self.config.motion.outputSmoothTime or 0.24, self:activeWidth())
-
-        if self.secondDetached then
-            Shape.layoutDetachedSecond(self, self.config.motion.outputSmoothTime or 0.24, self:activeWidth(2))
-        end
-
         task.defer(function()
             self.restoredWidth = nil
 
             self:queueWidthRefresh()
+
+            if self.secondDetached then
+                self:queueWidthRefresh(2)
+            end
         end)
     end)
 end
