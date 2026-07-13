@@ -18,6 +18,7 @@ export type PanelGroup = {
 	addChatHoverWidth: number,
 
 	suggestionHeight: number,
+	maxSuggestions: number,
 	suggestionRadius: number,
 	collapsedWidth: number,
 
@@ -180,6 +181,7 @@ Config.groups = {
 		addChatHoverWidth = 204,
 		suggestionRadius = 10,
 		suggestionHeight = 26,
+		maxSuggestions = 5,
 
 		suggestionGap = 8,
 		outputRadius = 12,

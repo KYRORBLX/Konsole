@@ -244,6 +244,9 @@ local function keyInput(self, input)
     elseif key == Enum.KeyCode.Right then
         return self:moveArgument(1)
 
+    elseif key == Enum.KeyCode.Backspace then
+        return self:moveArgument(-1)
+
     elseif key == Enum.KeyCode.Left then
         return self:moveArgument(-1)
     end

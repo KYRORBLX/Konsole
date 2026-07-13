@@ -152,7 +152,14 @@ function Suggestions.attach(Session)
         local chip = if type(self.focusedChip) == "function" then self:focusedChip() else self.activeChip
         
 		if chip and type(chip.arg) == "table" then
-			return rankList(imports.Providers.resolve(chip.arg), text), text
+			local source = imports.Providers.resolve(chip.arg)
+			local matches = rankList(source, text)
+
+			if #matches == 0 then
+				matches = rankList(source, "")
+			end
+
+			return matches, text
 		end
 
 		return self:suggestionsFor(text), string.lower(imports.Text.cleanStart(text))
@@ -246,8 +253,10 @@ function Suggestions.attach(Session)
 			return
 		end
 
+		local showing = suggList.Visible and not self.suggestionsHiding
 		local list, query = self:resolveSuggestions(text)
-		local count = #list
+		local limit = math.max(0, math.floor(tonumber(panel.maxSuggestions) or 5))
+		local count = math.min(#list, limit)
 		if count == 0 then
 			self:hideSuggestions()
 			return
@@ -274,6 +283,8 @@ function Suggestions.attach(Session)
 			end
 		end
 
+		local slide = showing and 0 or (config.motion.textSlideOffset or 10)
+
 		for index = 1, count do
 			local suggestion = list[index]
 			local button = imports.View.make("TextButton", {
@@ -298,7 +309,7 @@ function Suggestions.attach(Session)
 			local label = imports.View.make("TextLabel", {
                 Name = "Label",
                 
-                Position = UDim2.new(0, config.layout.paddingX, 0, 1 + (config.motion.textSlideOffset or 10)),
+                Position = UDim2.new(0, config.layout.paddingX, 0, 1 + slide),
                 Size = UDim2.new(1, -(config.layout.paddingX * 2), 1, -2),
                 
                 TextYAlignment = Enum.TextYAlignment.Center,
@@ -309,7 +320,7 @@ function Suggestions.attach(Session)
                 Font = config.font.body,
                 
                 BackgroundTransparency = 1,
-                TextTransparency = 1,
+                TextTransparency = showing and config.transparency.suggText or 1,
                 ZIndex = 33,
 				
                 Text = imports.View.richSuggestion(suggestion, query, config),
@@ -332,7 +343,9 @@ function Suggestions.attach(Session)
 				end)
 			)
 
-			imports.Suggest.item(self, label)
+			if not showing then
+				imports.Suggest.item(self, label)
+			end
 		end
 
 		self:syncSelection()

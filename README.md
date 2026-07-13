@@ -52,7 +52,7 @@ For Wally:
 
 ```toml
 [dependencies]
-Konsole = "kyrorblx/konsole@0.1.7"
+Konsole = "kyrorblx/konsole@0.1.8"
 ```
 
 Konsole is shared, but the UI is client-side. The server hosts command execution. The client shows the command bar and forwards server commands through Konsole's remote bridge.
@@ -425,6 +425,7 @@ Useful keys:
 - `Tab`: accept suggestion
 - `Up` / `Down`: move through suggestions
 - `Left` / `Right`: move between command/argument fields at the edges
+- `Backspace`: return to the previous field at the start of an argument
 - `Enter`: submit
 - `Escape`: close
 
@@ -469,6 +470,7 @@ Common panel options:
 - `height`: collapsed input height
 - `historyMaxHeight`: max history height for each pane
 - `suggestionHeight`
+- `maxSuggestions`: maximum visible suggestions
 - `suggestionGap`
 - `displayOrder`
 
