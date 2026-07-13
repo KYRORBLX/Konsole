@@ -52,7 +52,7 @@ For Wally:
 
 ```toml
 [dependencies]
-Konsole = "kyrorblx/konsole@0.1.8"
+Konsole = "kyrorblx/konsole@0.1.9"
 ```
 
 Konsole is shared, but the UI is client-side. The server hosts command execution. The client shows the command bar and forwards server commands through Konsole's remote bridge.
