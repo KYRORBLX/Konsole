@@ -6,7 +6,6 @@
 
 --// imports
 local imports = {
-	View = require("../../elements/misc/view"),
 	Math = require("../math"),
 }
 
@@ -16,6 +15,7 @@ local Tween = imports.Math.tween
 local function layoutMain(session, time, width, mainHeight, stackExtra, layoutSeq)
 	local refs = session.refs
 	local panel = session.config.panel
+
 	local transparency = session.config.transparency
 
 	Tween.to(refs.pill, {
@@ -80,6 +80,40 @@ local function layoutAddChat(session, time, width, showAddChat, layoutSeq)
 	local fadeTime = math.min(time, 0.14)
 
 	if showAddChat then
+		if session.secondClosingToAdd then
+			refs.addChatPill.Visible = false
+			session.stackShadowHiding = true
+
+			task.delay(time, function()
+				if session.layoutSeq ~= layoutSeq or session.hasSecondChat or not session.isExpanded then
+					return
+				end
+
+				refs.addChatPill.Size = UDim2.fromOffset(openWidth, panel.height)
+				refs.addChatText.Size = UDim2.fromOffset(0, 0)
+				refs.addChatPill.Position = position
+
+				refs.addChatPill.BackgroundTransparency = 1
+				refs.addChatIcon.ImageTransparency = 1
+				refs.addChatText.TextTransparency = 1
+				refs.addChatPill.Visible = true
+
+				session.stackShadowHiding = false
+
+				if typeof(refs.stackShadow) == "Instance" then
+					refs.stackShadow.ImageTransparency = 1
+					refs.stackShadow.Visible = true
+
+					Tween.fade(refs.stackShadow, { ImageTransparency = transparency.shadow }, fadeTime)
+				end
+
+				Tween.to(refs.addChatPill, { BackgroundTransparency = transparency.panel }, fadeTime)
+				Tween.fade(refs.addChatIcon, { ImageTransparency = transparency.dimText }, fadeTime)
+			end)
+
+			return
+		end
+
 		if typeof(refs.addChatPill) == "Instance" and not refs.addChatPill.Visible then
             refs.addChatPill.Size = UDim2.fromOffset(panel.addChatCollapsedWidth or panel.height, panel.height)
             refs.addChatPill.Position = position
@@ -95,7 +129,6 @@ local function layoutAddChat(session, time, width, showAddChat, layoutSeq)
 		
 		if typeof(refs.stackShadow) == "Instance" then
 			refs.stackShadow.Visible = true
-			imports.View.setShadowBounds(refs.stackShadow, refs.addChatPill)
 			Tween.fade(refs.stackShadow, { ImageTransparency = transparency.shadow }, time)
         end
         
@@ -117,10 +150,13 @@ local function layoutAddChat(session, time, width, showAddChat, layoutSeq)
 		return
 	end
 
+	local collapsing = not session.isExpanded
+	local fadeOutTime = collapsing and fadeTime or time
+
 	if typeof(refs.stackShadow) == "Instance" then
 		session.stackShadowHiding = true
 		refs.stackShadow.Visible = true
-		Tween.fade(refs.stackShadow, { ImageTransparency = 1 }, time)
+		Tween.fade(refs.stackShadow, { ImageTransparency = 1 }, fadeOutTime)
     end
     
     Tween.to(refs.addChatText, { Size = UDim2.fromOffset(0, 0) }, fadeTime)
@@ -128,9 +164,9 @@ local function layoutAddChat(session, time, width, showAddChat, layoutSeq)
 	Tween.fade(refs.addChatText, { TextTransparency = 1 }, fadeTime)
 	Tween.to(refs.addChatPill, {
 		Position = position,
-		Size = UDim2.fromOffset(openWidth, 0),
+		Size = UDim2.fromOffset(openWidth, collapsing and panel.height or 0),
 		BackgroundTransparency = 1,
-    }, time)
+    }, fadeOutTime)
     
 	task.delay(fadeTime, function()
 		if session.layoutSeq ~= layoutSeq then
@@ -176,7 +212,7 @@ local function layoutSecond(session, time, width, showSecondChat, layoutSeq)
         
 		if typeof(refs.secondShadow) == "Instance" then
 			refs.secondShadow.Visible = true
-			imports.View.setShadowBounds(refs.secondShadow, refs.secondPill)
+
 			Tween.fade(refs.secondShadow, { ImageTransparency = transparency.shadow }, time)
         end
         
@@ -203,7 +239,7 @@ local function layoutSecond(session, time, width, showSecondChat, layoutSeq)
         }, time)
         
         if session.hasSecondOutput then
-            
+
             refs.secondCommandRow.ScrollingEnabled = true
             refs.secondCommandRow.Visible = true
             
@@ -240,15 +276,29 @@ local function layoutSecond(session, time, width, showSecondChat, layoutSeq)
     Tween.fade(refs.SecondInputBox, { TextTransparency = 1 }, time)
     Tween.fade(refs.SecondPrompt, { TextTransparency = 1 }, time)
     
-    refs.secondCommandRow.ScrollBarImageTransparency = 1
-    refs.secondCommandRow.ScrollingEnabled = false
+	refs.secondCommandRow.ScrollBarImageTransparency = 1
+	refs.secondCommandRow.ScrollingEnabled = false
     
 	Tween.to(refs.secondCommandRow, { Size = UDim2.new(1, 0, 0, 0) }, time)
-	Tween.to(refs.secondRoot, { Size = UDim2.fromOffset(width, 0) }, time)
+
+	local closingToAdd = session.isExpanded and session.secondClosingToAdd
+	local targetWidth = closingToAdd and session:addChatWidth(width) or width
+	local targetHeight = closingToAdd and panel.height or 0
+
+	local rootTarget = { Size = UDim2.fromOffset(targetWidth, targetHeight) }
+
+	if closingToAdd then
+		rootTarget.Position = refs.root.Position
+	end
+
+	Tween.to(refs.secondRoot, rootTarget, time)
 	Tween.to(refs.secondPill, {
-		Size = UDim2.fromOffset(width, 0),
-		BackgroundTransparency = 1,
+		Size = UDim2.fromOffset(targetWidth, targetHeight),
+		BackgroundTransparency = closingToAdd and transparency.panel or 1,
     }, time)
+	Tween.to(refs.secondPillCorner, {
+		CornerRadius = closingToAdd and UDim.new(1, 0) or refs.secondPillCorner.CornerRadius,
+	}, time)
     
 	task.delay(time, function()
 		if session.layoutSeq ~= layoutSeq then
@@ -272,6 +322,8 @@ local function layoutSecond(session, time, width, showSecondChat, layoutSeq)
 		if not stillWanted and typeof(refs.secondCommandRow) == "Instance" then
 			refs.secondCommandRow.Visible = false
 		end
+
+		session.secondClosingToAdd = false
 	end)
 end
 
@@ -377,13 +429,6 @@ function Shape.hover(session)
     Tween.fade(refs.addChatText, { TextTransparency = textTransparency }, time)
     Tween.to(refs.addChatText, { Size = textSize }, time)
     
-	if typeof(refs.stackShadow) == "Instance" and typeof(refs.addChatPill) == "Instance" then
-		task.defer(function()
-			if session.refs and not session.isClosing and not session.hasSecondChat then
-				imports.View.setShadowBounds(refs.stackShadow, refs.addChatPill)
-			end
-		end)
-	end
 end
 
 function Shape.expand(session)

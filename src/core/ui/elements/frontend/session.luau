@@ -99,7 +99,7 @@ local function detachSecond(self)
 
     local refs = self.refs
     local width = self.layoutTargetWidth or refs.root.Size.X.Offset
-    
+
     local secondWidth = self:activeWidth(2)
     
     local rootPosition = refs.root.Position
@@ -122,12 +122,8 @@ local function detachSecond(self)
     refs.root.Position = mainPosition
     self.rootPosition = mainPosition
 
-    refs.pill.Position = UDim2.new(0.5, 0, 1, 0)
-    refs.pillBtn.Position = UDim2.new(0.5, 0, 1, 0)
-
-	if typeof(refs.secondShadow) == "Instance" then
-		View.setShadowBounds(refs.secondShadow, refs.secondPill)
-	end
+     refs.pillBtn.Position = UDim2.new(0.5, 0, 1, 0)
+     refs.pill.Position = UDim2.new(0.5, 0, 1, 0)
 
     refs.stackShadow.Visible = false
     refs.addChatPill.Visible = false
@@ -156,7 +152,7 @@ local function attachAddChat(self, savedMainPosition)
 
     local stackExtra = panel.height + (panel.stackGap or 8)
 
-    refs.root.Size = UDim2.fromOffset(width, refs.pill.Size.Y.Offset + stackExtra)
+    refs.root.Size = UDim2.fromOffset(width, self:mainHeight() + stackExtra)
 
     refs.pillBtn.Position = UDim2.new(0.5, 0, 1, -stackExtra)
     refs.pill.Position = UDim2.new(0.5, 0, 1, -stackExtra)
@@ -181,50 +177,6 @@ local function setRecall(self, channel, input, text)
     end)
 end
 
-local function activationText(self, input)
-    local text = tostring(input.Text or "")
-
-    local untilTime = self.suppressNextInputUntil or 0
-    local suppressing = self.suppressNextInputText
-
-    if suppressing and os.clock() <= untilTime then
-        self.suppressNextInputText = false
-
-        if #text == 1 then
-            input.Text = ""
-            return true
-        end
-
-        self.suppressActivation = false
-
-        return false
-    end
-
-    if suppressing and os.clock() > untilTime then
-        self.suppressNextInputText = false
-
-        self.suppressActivation = false
-    end
-
-    if not string.find(text, "`", 1, true) then
-        return false
-    end
-
-    input.Text = string.gsub(text, "`", "")
-
-    if self.suppressActivation then
-        self.suppressActivation = false
-        return true
-    end
-
-    if Text.callable(self.onActivationText) then
-
-        task.defer(self.onActivationText)
-    end
-
-    return true
-end
-
 local function keyInput(self, input)
     if not self.isExpanded then
         return false
@@ -245,6 +197,13 @@ local function keyInput(self, input)
         return self:moveArgument(1)
 
     elseif key == Enum.KeyCode.Backspace then
+        task.delay(0.3, function()
+            while self.isExpanded and input.UserInputState ~= Enum.UserInputState.End do
+                self:moveArgument(-1)
+                task.wait(0.05)
+            end
+        end)
+
         return self:moveArgument(-1)
 
     elseif key == Enum.KeyCode.Left then
@@ -301,10 +260,6 @@ end
 
 local function bindText(self, input, channel)
     return input:GetPropertyChangedSignal("Text"):Connect(function()
-        if activationText(self, input) then
-            return
-        end
-
         local text = clean(input.Text)
         if input.Text ~= text then
             input.Text = text
@@ -505,19 +460,21 @@ local function bindRefs(self)
         track(bindText(self, input, channel))
     end
 
-    for _, signal in
-        {
-            refs.addChatPill:GetPropertyChangedSignal("Size"),
-            refs.secondPill:GetPropertyChangedSignal("Size"),
-            refs.pill:GetPropertyChangedSignal("Position"),
+    for _, pair in {
+        { refs.pillShadow, refs.pill },
+        { refs.suggShadow, refs.suggList },
+        { refs.stackShadow, refs.addChatPill },
+        { refs.secondShadow, refs.secondPill },
+    } do
+        local shadow, target = pair[1], pair[2]
 
-            refs.suggList:GetPropertyChangedSignal("Size"),
-            refs.pill:GetPropertyChangedSignal("Size"),
-        }
-    do
-        track(signal:Connect(function()
-            self:queueShadowUpdate()
-        end))
+        View.setShadowBounds(shadow, target)
+
+        for _, property in { "Position", "Size" } do
+            track(target:GetPropertyChangedSignal(property):Connect(function()
+                View.setShadowBounds(shadow, target)
+            end))
+        end
     end
 
     for channel, row in { refs.commandRow, refs.secondCommandRow } do
@@ -577,6 +534,7 @@ local function baseState(config)
         history = {},
 
         hasSecondOutput = false,
+        secondClosingToAdd = false,
         secondDetached = false,
         hasSecondChat = false,
         isDestroying = false,
@@ -614,17 +572,10 @@ local function baseState(config)
 
         addChatHover = false,
         restoredWidth = nil,
-        shadowQueued = false,
-
         queuedWidth = nil,
         secondQueuedWidth = nil,
         layoutSeq = 0,
 
-        suppressNextInputUntil = 0,
-        suppressNextInputText = false,
-        suppressActivation = false,
-
-        onActivationText = nil,
         onCloseRequest = nil,
         onSubmit = nil,
     }
@@ -730,19 +681,8 @@ function Session:bindSubmit(fn)
     self.onSubmit = Text.callable(fn) and fn or nil
 end
 
-function Session:bindActivationText(fn)
-    self.onActivationText = Text.callable(fn) and fn or nil
-end
-
 function Session:bindCloseRequest(fn)
     self.onCloseRequest = Text.callable(fn) and fn or nil
-end
-
-function Session:suppressNextActivationText()
-    self.suppressActivation = true
-    self.suppressNextInputText = true
-
-    self.suppressNextInputUntil = os.clock() + 0.12
 end
 
 function Session:setSuggestions(list)
@@ -961,6 +901,7 @@ function Session:collapse()
         return
     end
 
+    self.secondClosingToAdd = false
     self.isExpanded = false
     self.isClosing = true
 
@@ -1079,15 +1020,13 @@ function Session:clear(channel)
 end
 
 function Session:closeSecond()
+    local wasDetached = self.secondDetached
     local mainPosition = self.refs.root.Position
-
-    if not self.secondDetached then
-        mainPosition = shifted(mainPosition, -self:stackExtra())
-    end
 
     self.commandHistory[2] = {}
     self.secondHistory = {}
 
+    self.secondClosingToAdd = self.isExpanded and self.hasOutput
     self.hasSecondOutput = false
     self.secondDetached = false
     self.hasSecondChat = false
@@ -1112,7 +1051,9 @@ function Session:closeSecond()
     self:hideSuggestions()
     self:hideHints(2)
 
-    attachAddChat(self, mainPosition)
+    if wasDetached then
+        attachAddChat(self, mainPosition)
+    end
 
     setDraggingEnabled(self, true)
 
@@ -1270,7 +1211,6 @@ function Session:destroy()
     self.isDestroying = true
     self.isClosing = true
 
-    self.shadowQueued = false
     self.isExpanded = false
 
     self.layoutSeq += 1

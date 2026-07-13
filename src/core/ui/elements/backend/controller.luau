@@ -31,6 +31,10 @@ local function keyList(keys)
     return out
 end
 
+local function typingKey(key)
+    return utf8.len(imports.UserInputService:GetStringForKeyCode(key)) == 1
+end
+
 local function bindActivation(self)
     imports.ContextActionService:UnbindAction(self.toggleActionName)
 
@@ -40,16 +44,15 @@ local function bindActivation(self)
 
     imports.ContextActionService:BindActionAtPriority(
         self.toggleActionName,
-        function(_, inputState)
+        function(_, inputState, input)
             if inputState ~= Enum.UserInputState.Begin or not self.enabled then
                 return Enum.ContextActionResult.Pass
             end
 
-            if imports.UserInputService:GetFocusedTextBox() and not self.open then
+            if imports.UserInputService:GetFocusedTextBox() and not self.open and typingKey(input.KeyCode) then
                 return Enum.ContextActionResult.Pass
             end
 
-            self.openedByActivation = not self.open
             self:toggle()
 
             return Enum.ContextActionResult.Sink
@@ -91,7 +94,6 @@ function Controller.new(config)
         toggleActionName = `KonsoleToggle_{serial}`,
         
         activationUnlocksMouse = false,
-        openedByActivation = false,
         enabled = true,
         open = false,
         
@@ -203,7 +205,7 @@ end
 
 function Controller:ensureGui()
     local player = imports.Players.LocalPlayer
-    local playerGui = player and (player:FindFirstChildOfClass("PlayerGui") or player:WaitForChild("PlayerGui", 10))
+    local playerGui = player and player:FindFirstChildOfClass("PlayerGui")
 
     if not playerGui then
         return nil
@@ -285,15 +287,6 @@ function Controller:show()
     local savedSecondPosition = type(self.savedSession) == "table" and self.savedSession.secondPosition or nil
 
     local session = imports.Session.new(gui, self.config, savedPosition, savedSecondPosition)
-
-    if self.openedByActivation then
-        self.openedByActivation = false
-        session:suppressNextActivationText()
-    end
-
-    session:bindActivationText(function()
-        self:hide()
-    end)
 
     session:bindCloseRequest(function()
         self:hide()

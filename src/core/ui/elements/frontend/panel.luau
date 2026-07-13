@@ -28,6 +28,10 @@ local function measureText(text, config)
     return size
 end
 
+local function textGap(config)
+    return math.floor((measureText("a a", config).X - measureText("aa", config).X) * 0.5)
+end
+
 local function visibleWindow(session, channel)
     local _, row = session:channelState(channel)
     local raw = session:rawHistoryHeight(channel)
@@ -369,12 +373,15 @@ function Panel.attach(Session)
 
         local widest = 0
 
+        local textWidth
+        local leftEdge
+
         if typeof(input) == "Instance" and input:IsA("TextBox") and input.Visible then
             local field = input.Parent
 
             if typeof(field) == "Instance" and field:IsA("GuiObject") then
-                local leftEdge = field.AbsolutePosition.X - pill.AbsolutePosition.X
-                local textWidth = measureText(tostring(input.Text or ""), self.config).X
+                leftEdge = field.AbsolutePosition.X - pill.AbsolutePosition.X
+                textWidth = measureText(tostring(input.Text or ""), self.config).X
 
                 widest = math.max(widest, leftEdge + textWidth)
             end
@@ -387,6 +394,10 @@ function Panel.attach(Session)
             and row.AbsoluteSize.X > 1
         then
             local rightEdge = (row.AbsolutePosition.X + row.AbsoluteSize.X) - pill.AbsolutePosition.X
+
+            if leftEdge and textWidth then
+                rightEdge = leftEdge + textWidth + textGap(self.config) + row.AbsoluteSize.X
+            end
 
             widest = math.max(widest, rightEdge)
         end
@@ -626,22 +637,6 @@ function Panel.attach(Session)
         imports.Shape.hover(self)
     end
 
-    function Session:queueShadowUpdate()
-        if self.shadowQueued then
-            return
-        end
-
-        self.shadowQueued = true
-
-        task.defer(function()
-            self.shadowQueued = false
-            if self.refs then
-
-                self:updateShadows()
-            end
-        end)
-    end
-
     function Session:updateShadows()
         if self.isDestroying then
             return
@@ -649,14 +644,11 @@ function Panel.attach(Session)
 
         local refs = self.refs
 
-        imports.View.setShadowBounds(refs.pillShadow, refs.pill)
-
         if typeof(refs.pillShadow) == "Instance" then
             refs.pillShadow.Visible = true
         end
 
         if typeof(refs.suggShadow) == "Instance" and typeof(refs.suggList) == "Instance" then
-            imports.View.setShadowBounds(refs.suggShadow, refs.suggList)
             if self.suggestionsHiding then
                 refs.suggShadow.Visible = true
             else
@@ -668,7 +660,6 @@ function Panel.attach(Session)
 
         if typeof(refs.stackShadow) == "Instance" then
             if target then
-                imports.View.setShadowBounds(refs.stackShadow, target)
                 refs.stackShadow.Visible = true
 
             elseif not self.stackShadowHiding then
@@ -684,7 +675,6 @@ function Panel.attach(Session)
 
         if typeof(refs.secondShadow) == "Instance" then
             if secondTarget then
-                imports.View.setShadowBounds(refs.secondShadow, secondTarget)
                 refs.secondShadow.Visible = true
 
             elseif not self.secondShadowHiding then

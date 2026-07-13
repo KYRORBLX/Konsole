@@ -423,13 +423,21 @@ function View.createTree(session, gui)
     refs.stackShadow = createShadow(root, "StackShadow", config, 26, false)
     refs.pillShadow = createShadow(root, "PillShadow", config, 27, true)
 
-    local suggList = View.make("Frame", {
+    local suggList = View.make("ScrollingFrame", {
+        ScrollingEnabled = true,
+        Active = true,
+
+        ScrollingDirection = Enum.ScrollingDirection.Y,
+        ScrollBarImageTransparency = 1,
+        ScrollBarThickness = 0,
+
         BackgroundTransparency = 1,
         BorderSizePixel = 0,
         ZIndex = 28,
 
         Position = UDim2.new(0.5, 0, 0, -panel.suggestionGap),
         Size = UDim2.fromOffset(panel.width, 0),
+        CanvasSize = UDim2.fromOffset(0, 0),
         AnchorPoint = Vector2.new(0.5, 1),
         
         BackgroundColor3 = colors.suggPanel,

@@ -6,7 +6,6 @@
 
 --// imports
 local imports = {
-	View = require("../elements/misc/view"),
 	Math = require("./math"),
 }
 
@@ -46,8 +45,7 @@ function Suggest.reveal(session, count)
         
 		refs.suggShadow.Visible = not session.isClosing
         refs.suggShadow.ImageTransparency = 1
-        
-		imports.View.setShadowBounds(refs.suggShadow, suggList)
+
 		Tween.to(refs.suggShadow, {
 			ImageTransparency = config.transparency.shadow,
 		}, config.motion.listSmoothTime)
@@ -78,7 +76,6 @@ function Suggest.hide(session)
 	end
 
 	if typeof(refs.suggShadow) == "Instance" then
-		imports.View.setShadowBounds(refs.suggShadow, suggList)
 		refs.suggShadow.Visible = not session.isClosing
 		Tween.to(refs.suggShadow, { ImageTransparency = 1 }, config.motion.listSmoothTime)
     end

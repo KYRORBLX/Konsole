@@ -153,16 +153,27 @@ function Suggestions.attach(Session)
         
 		if chip and type(chip.arg) == "table" then
 			local source = imports.Providers.resolve(chip.arg)
+
+			if text == "" then
+				return source, text
+			end
+
 			local matches = rankList(source, text)
 
 			if #matches == 0 then
-				matches = rankList(source, "")
+				matches = source
 			end
 
 			return matches, text
 		end
 
-		return self:suggestionsFor(text), string.lower(imports.Text.cleanStart(text))
+		local query = string.lower(imports.Text.cleanStart(text))
+
+		if string.find(query, "%s") then
+			return {}, query
+		end
+
+		return self:suggestionsFor(query), query
 	end
 
 	function Session:hideSuggestions()
@@ -236,6 +247,24 @@ function Suggestions.attach(Session)
         
 		self.selectedSuggestion = ((current - 1 + delta) % count) + 1
         self:syncSelection()
+
+		local suggList = self.refs.suggList
+		if suggList:IsA("ScrollingFrame") then
+			local top = 2 + ((self.selectedSuggestion - 1) * rowHeight)
+			local rowHeight = self.config.panel.suggestionHeight
+
+			local position = suggList.CanvasPosition.Y
+			local bottom = top + rowHeight
+
+			if top < position then
+				position = top
+
+			elseif bottom > position + suggList.AbsoluteWindowSize.Y then
+				position = bottom - suggList.AbsoluteWindowSize.Y
+			end
+
+			suggList.CanvasPosition = Vector2.new(0, math.max(0, position))
+		end
         
 		return true
 	end
@@ -256,14 +285,16 @@ function Suggestions.attach(Session)
 		local showing = suggList.Visible and not self.suggestionsHiding
 		local list, query = self:resolveSuggestions(text)
 		local limit = math.max(0, math.floor(tonumber(panel.maxSuggestions) or 5))
-		local count = math.min(#list, limit)
-		if count == 0 then
+		local count = #list
+		local visibleCount = math.min(count, limit)
+
+		if visibleCount == 0 then
 			self:hideSuggestions()
 			return
 		end
 
         self.suggestionQuery = query
-        self.currentSuggestions = {}
+        self.currentSuggestions = table.clone(list)
         
         self.suggestionsHiding = false
 
@@ -272,10 +303,9 @@ function Suggestions.attach(Session)
         
         imports.View.clearSuggestionConnections(self)
         self:placeSuggestions()
-        
-		for index = 1, count do
-			table.insert(self.currentSuggestions, list[index])
-        end
+
+		suggList.CanvasPosition = Vector2.zero
+		suggList.CanvasSize = UDim2.fromOffset(0, (count * panel.suggestionHeight) + 4)
         
 		for _, child in suggList:GetChildren() do
 			if child:IsA("TextButton") then
@@ -349,7 +379,7 @@ function Suggestions.attach(Session)
 		end
 
 		self:syncSelection()
-        imports.Suggest.reveal(self, count)
+        imports.Suggest.reveal(self, visibleCount)
         
 		task.defer(function()
 			self:updateShadows()

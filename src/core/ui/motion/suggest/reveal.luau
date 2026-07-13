@@ -47,7 +47,7 @@ function Reveal.prepare(session)
     refs.Placeholder.TextTransparency = 1
     refs.ArrowIcon.ImageTransparency = 1
     refs.Prompt.TextTransparency = 1
-	
+
     refs.pillPad.PaddingLeft = UDim.new(0, layout.paddingX + slide)
 	refs.InputBox.Visible = false
 
@@ -157,14 +157,16 @@ function Reveal.close(session)
 	local closeTime = motion.collapseSmoothTime or 0.38
     local slideTime = motion.openSmoothTime or closeTime
     
-    local showSecondChat = session.hasSecondChat
-        and refs.secondRoot.Visible
+    local showSecondChat = refs.secondRoot.Visible
         and refs.secondPill.Visible
         and refs.secondPill.Size.Y.Offset > 0
     local width = panel.collapsedWidth
     
     local addChatFadeTime = 0.08
     local slideDelay = 0.04
+
+    local slideEnd = slideDelay + slideTime
+    local shadows = { refs.pillShadow, refs.suggShadow, refs.stackShadow, refs.secondShadow }
     
     local secondPosition = savedPosition(session, "secondRootPosition", refs.secondRoot)
     local position = savedPosition(session, "rootPosition", refs.root)
@@ -178,20 +180,14 @@ function Reveal.close(session)
 		BackgroundTransparency = 1,
     }, closeTime)
     
-    Tween.fade(refs.secondShadow, { ImageTransparency = 1 }, closeTime)
-    Tween.fade(refs.stackShadow, { ImageTransparency = 1 }, closeTime)
-    
-    Tween.fade(refs.pillShadow, { ImageTransparency = 1 }, closeTime)
-	Tween.fade(refs.suggShadow, { ImageTransparency = 1 }, closeTime)
-	
-	task.delay(closeTime, function()
+	task.delay(slideEnd, function()
 		if not session.isClosing then
 			return
         end
         
-		for _, name in { "pillShadow", "suggShadow", "stackShadow", "secondShadow" } do
-			if typeof(refs[name]) == "Instance" then
-				refs[name].Visible = false
+		for _, shadow in shadows do
+			if typeof(shadow) == "Instance" then
+				shadow.Visible = false
 			end
 		end
 	end)
@@ -250,6 +246,10 @@ function Reveal.close(session)
 		if not refs.root then
 			return
         end
+
+		for _, shadow in shadows do
+			Tween.fade(shadow, { ImageTransparency = 1 }, slideTime)
+		end
         
 		Tween.to(refs.root, {
 			Position = shifted(position, motion.openSlideOffset or 44),
@@ -280,7 +280,7 @@ function Reveal.close(session)
 		end
 	end)
 
-	return slideDelay + slideTime + 0.05
+	return slideEnd + 0.05
 end
 
 return Reveal
