@@ -229,15 +229,12 @@ declare namespace Konsole {
 			historyLineHeight: number;
 			historyChunkLines: number;
 			historyMaxHeight: number;
-			stackHistoryMaxHeight: number;
 			viewportTopInset: number;
 			suggestionHeight: number;
 			suggestionGap: number;
 			suggestionRadius: number;
 			maxSuggestions: number;
-			hintHeight: number;
 			outputRadius: number;
-			bottomInset: number;
 			displayOrder: number;
 			shadowAssetId: string;
 			arrowAssetId: string;
