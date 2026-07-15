@@ -174,12 +174,28 @@ declare namespace Konsole {
 		readonly allows: (entity: RankEntity, required: number | RankName) => boolean;
 	}
 
+	/**
+	 * Shared by `Konsole.implement` and `Dispatch.implement` (the former just
+	 * delegates to the latter at runtime, so both must enforce the schema).
+	 * A branded `ServerName` binds the callback to its schema-inferred tuple;
+	 * plain strings fall through to the loose overload, which rejects branded
+	 * names (the intersection collapses to `never`) so an annotated callback
+	 * can't bypass its schema.
+	 */
+	interface Implement {
+		<A extends Args>(name: ServerName<A>, callback: (context: Context, ...args: NoInfer<A>) => unknown): void;
+		<N extends string, T extends Args = Args>(
+			name: N & ([N] extends [ServerName] ? never : unknown),
+			callback: (context: Context, ...args: T) => unknown,
+		): void;
+	}
+
 	export interface DispatchModule {
 		readonly remoteName: string;
 		readonly definitionsRemoteName: string;
 		readonly timeout: number;
 		readonly host: (serverImplementations?: Record<string, Run<Array<any>>>) => RemoteFunction | undefined;
-		readonly implement: (name: string, callback: Run<Array<any>>) => void;
+		readonly implement: Implement;
 		readonly execute: (text: string, entity?: RankEntity) => ExecuteResult;
 	}
 
@@ -429,19 +445,7 @@ declare namespace Konsole {
 		) => Command<RunArgs<T>, S>;
 		getRank: (entity: RankEntity) => number;
 		host: (serverImplementations?: Record<string, Run<Array<any>>>) => RemoteFunction | undefined;
-		implement: {
-			<A extends Args>(name: ServerName<A>, callback: (context: Context, ...args: NoInfer<A>) => unknown): void;
-			/**
-			 * Escape hatch for names that never went through `define`. Branded
-			 * `ServerName`s are rejected here (the intersection collapses to
-			 * `never`), so a schema-typed name can't sneak past its schema by
-			 * annotating the callback differently.
-			 */
-			<N extends string, T extends Args = Args>(
-				name: N & ([N] extends [ServerName] ? never : unknown),
-				callback: (context: Context, ...args: T) => unknown,
-			): void;
-		};
+		implement: Implement;
 		run: (text: string) => ExecuteResult;
 		setRank: (userId: number | string, rank: number | RankName) => number;
 
