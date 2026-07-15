@@ -124,6 +124,9 @@ declare namespace Konsole {
 
 	export type Args = ReadonlyArray<unknown>;
 
+	/** Blocks inference from this position so the branded name alone determines the tuple. */
+	type NoInfer<T> = [T][T extends unknown ? 0 : never];
+
 	/**
 	 * A server implementation name whose argument tuple was captured from the
 	 * `args` schema of the `define(...)` call that produced it. Passing one to
@@ -230,6 +233,7 @@ declare namespace Konsole {
 			historyChunkLines: number;
 			historyMaxHeight: number;
 			viewportTopInset: number;
+			hintHeight: number;
 			suggestionHeight: number;
 			suggestionGap: number;
 			suggestionRadius: number;
@@ -328,8 +332,14 @@ declare namespace Konsole {
 		readonly new: (options?: ConfigOverrides) => Client;
 	}
 
+	/**
+	 * When the schema is a fixed tuple (the usual inline `define` call), each
+	 * run argument gets its exact type. A widened `Argument[]` schema carries
+	 * no per-position info, so the args fall back to `any` — the runtime still
+	 * passes whatever was parsed.
+	 */
 	type RunArgs<T extends readonly Argument[]> = number extends (T & { length: number })["length"]
-		? []
+		? ReadonlyArray<any>
 		: { [K in keyof T]: ArgumentRuntimeValue<T[K]> };
 
 	export interface Definition<
@@ -374,6 +384,13 @@ declare namespace Konsole {
 	 * roblox-ts emits `client:show()` style calls for them.
 	 */
 	export interface Client {
+		/**
+		 * Nominal marker: only values returned by `create(...)`/`Render.new(...)`
+		 * are Clients. Without it the dot-call `Api` is structurally assignable
+		 * to `Client`, and roblox-ts would emit colon calls (`c:setEnabled(true)`)
+		 * against dot functions, shifting every argument by one at runtime.
+		 */
+		readonly _nominal_Client: unique symbol;
 		bindRun(callback: (text: string) => unknown): void;
 		clear(): void;
 		destroy(): void;
@@ -413,8 +430,17 @@ declare namespace Konsole {
 		getRank: (entity: RankEntity) => number;
 		host: (serverImplementations?: Record<string, Run<Array<any>>>) => RemoteFunction | undefined;
 		implement: {
-			<A extends Args>(name: ServerName<A>, callback: (context: Context, ...args: A) => unknown): void;
-			<T extends Args = Args>(name: string, callback: (context: Context, ...args: T) => unknown): void;
+			<A extends Args>(name: ServerName<A>, callback: (context: Context, ...args: NoInfer<A>) => unknown): void;
+			/**
+			 * Escape hatch for names that never went through `define`. Branded
+			 * `ServerName`s are rejected here (the intersection collapses to
+			 * `never`), so a schema-typed name can't sneak past its schema by
+			 * annotating the callback differently.
+			 */
+			<N extends string, T extends Args = Args>(
+				name: N & ([N] extends [ServerName] ? never : unknown),
+				callback: (context: Context, ...args: T) => unknown,
+			): void;
 		};
 		run: (text: string) => ExecuteResult;
 		setRank: (userId: number | string, rank: number | RankName) => number;
