@@ -250,8 +250,8 @@ function Suggestions.attach(Session)
 
 		local suggList = self.refs.suggList
 		if suggList:IsA("ScrollingFrame") then
-			local top = 2 + ((self.selectedSuggestion - 1) * rowHeight)
 			local rowHeight = self.config.panel.suggestionHeight
+			local top = 2 + ((self.selectedSuggestion - 1) * rowHeight)
 
 			local position = suggList.CanvasPosition.Y
 			local bottom = top + rowHeight
