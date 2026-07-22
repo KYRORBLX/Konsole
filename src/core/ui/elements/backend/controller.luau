@@ -1,6 +1,6 @@
 --[[
 	@name controller
-	@author driftingAurora, dullflowerr
+	@author driftingAurora, dullflowerr, alias; kioukaii
 	@time June 12, 2026
 ]]
 
@@ -306,7 +306,7 @@ function Controller:show()
             return
         end
 
-        if trimmed == "clear" or trimmed == "cls" then
+        if trimmed == "clear" or trimmed == "cls" or trimmed == "clr" then
             session:clear(channel)
             return
         end

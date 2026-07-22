@@ -1,10 +1,25 @@
 --[[
 	@name config
-	@author driftingAurora, dullflowerr
+	@author driftingAurora, dullflowerr, alias; kioukaii
 	@time June 12, 2026
 ]]
 
 --!strict
+
+export type PanelPosition =
+	UDim2
+	| "br"
+	| "tr"
+	| "tl"
+	| "bl"
+	| "bc"
+	| "tc"
+	| "bottom right"
+	| "top right"
+	| "top left"
+	| "bottom left"
+	| "bottom center"
+	| "top center"
 
 export type FontGroup = {
 	title: Enum.Font,
@@ -13,6 +28,8 @@ export type FontGroup = {
 }
 
 export type PanelGroup = {
+	position: PanelPosition,
+
 	addChatCollapsedWidth: number,
 	historyChunkLines: number,
 	addChatHoverWidth: number,
@@ -161,6 +178,8 @@ local Config = {}
 
 Config.groups = {
 	panel = flat({
+		position = "bc", -- use a udim2 or a preset like "bottom center"
+
 		wideWidth = INF,
 		maxWidth = INF,
 

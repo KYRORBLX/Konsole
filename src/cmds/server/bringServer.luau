@@ -1,6 +1,6 @@
 --[[
 	@name bringServer
-	@author driftingAurora, dullflowerr
+	@author driftingAurora, dullflowerr, alias; kioukaii
 	@time June 23, 2026
 ]]
 

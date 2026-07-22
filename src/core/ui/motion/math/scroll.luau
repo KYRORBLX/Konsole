@@ -2,7 +2,7 @@
 
 --[[
 	@name scroll
-	@author driftingAurora, dullflowerr
+	@author driftingAurora, dullflowerr, alias; kioukaii
 	@time July 11, 2026
 ]]
 

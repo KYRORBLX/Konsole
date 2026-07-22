@@ -2,7 +2,7 @@
 
 --[[
 	@name providers
-	@author driftingAurora, dullflowerr
+	@author driftingAurora, dullflowerr, alias; kioukaii
 	@time June 13, 2026
 ]]
 

@@ -54,7 +54,23 @@ declare namespace Konsole {
 
 	export type Run = (context: Context, ...args: unknown[]) => unknown;
 	export type RankResolver = (entity: unknown) => number | undefined;
-	export type ConfigOverrides = Record<string, Record<string, unknown>>;
+	export type PanelPosition =
+		| UDim2
+		| "br"
+		| "tr"
+		| "tl"
+		| "bl"
+		| "bc"
+		| "tc"
+		| "bottom right"
+		| "top right"
+		| "top left"
+		| "bottom left"
+		| "bottom center"
+		| "top center";
+	export type ConfigOverrides = Record<string, Record<string, unknown>> & {
+		panel?: Record<string, unknown> & { position?: PanelPosition };
+	};
 
 	type RunArgs<T extends readonly Argument[]> = {
 		[K in keyof T]: ArgumentValue<T[K]>;
@@ -128,7 +144,7 @@ declare namespace Konsole {
 		host: (serverImplementations?: Record<string, Run>) => RemoteFunction | undefined;
 		implement: (name: string, callback: Run) => void;
 		run: (text: string) => Outcome;
-		setRank: (userId: unknown, rank: unknown) => number;
+		setRank: (userId: unknown, rank: number | string) => number;
 	}
 }
 

@@ -1,6 +1,6 @@
 --[[
 	@name hints
-	@author driftingAurora, dullflowerr
+	@author driftingAurora, dullflowerr, alias; kioukaii
 	@time June 13, 2026
 ]]
 
@@ -158,6 +158,7 @@ function Hints.attach(Session)
 
         local trailingSpace = string.match(text, "%s$") ~= nil
         local hasArgs = type(args) == "table" and #args > 0
+        local exactCommand = args ~= nil and #tokens == 1 and firstToken ~= ""
 
         local supplied = math.max(0, #tokens - 1)
         local completed = trailingSpace and supplied or math.max(0, supplied - 1)
@@ -169,7 +170,7 @@ function Hints.attach(Session)
 
             activeIndex = completed + 1,
             
-            argMode = hasArgs and (trailingSpace or #tokens >= 2),
+            argMode = hasArgs and (exactCommand or glued ~= nil or trailingSpace or #tokens >= 2),
             command = args ~= nil and commandWord or nil,
             
             
@@ -521,11 +522,29 @@ function Hints.attach(Session)
 
         self:styleChips(channel)
 
-        if typeof(chip.box) == "Instance" then
-            chip.box:CaptureFocus()
+        local function capture()
+            local active = self.activeChip
+            if
+                self.isDestroying
+                or not active
+                or active.channel ~= channel
+                or active.index ~= index
+                or active.box ~= chip.box
+                or typeof(chip.box) ~= "Instance"
+                or not chip.box.Parent
+            then
+                return
+            end
+
+            if not chip.box:IsFocused() then
+                chip.box:CaptureFocus()
+            end
 
             chip.box.CursorPosition = #chip.box.Text + 1
         end
+
+        capture()
+        task.defer(capture)
 
         self:updateSuggestions(chip.box.Text)
     end

@@ -1,6 +1,6 @@
 --[[
 	@name panel
-	@author driftingAurora, dullflowerr
+	@author driftingAurora, dullflowerr, alias; kioukaii
 	@time June 12, 2026
 ]]
 
@@ -11,6 +11,7 @@ local imports = {
 
     Shape = require("../../motion/math/shape"),
     History = require("../backend/history"),
+    Placement = require("../misc/placement"),
     View = require("../misc/view"),
 }
 
@@ -123,18 +124,27 @@ function Panel.attach(Session)
             return baseLimit
         end
 
-        local bottom = camera.ViewportSize.Y
+        local root = channel == 2 and self.refs.secondRoot or self.refs.root
         local position = channel == 2 and self.secondRootPosition or self.rootPosition
 
-        if typeof(position) == "UDim2" then
-            bottom = (camera.ViewportSize.Y * position.Y.Scale) + position.Y.Offset
+        if typeof(position) ~= "UDim2" and typeof(root) == "Instance" then
+            position = root.Position
         end
 
-        if channel == 1 then
-            bottom -= self:stackExtra()
+        if typeof(position) ~= "UDim2" then
+            return baseLimit
         end
 
-        local available = bottom - (panel.viewportTopInset or 24)
+        local point = (camera.ViewportSize.Y * position.Y.Scale) + position.Y.Offset
+        local edgeInset = panel.viewportTopInset or 24
+        local stackExtra = channel == 1 and self:stackExtra() or 0
+        local available
+
+        if typeof(root) == "Instance" and imports.Placement.isTop(root) then
+            available = camera.ViewportSize.Y - point - edgeInset - stackExtra
+        else
+            available = point - edgeInset - stackExtra
+        end
 
         return math.max(panel.commandHeight, math.min(baseLimit, available - panel.height))
     end

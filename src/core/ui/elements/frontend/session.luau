@@ -1,6 +1,6 @@
 --[[
 	@name session
-	@author driftingAurora, dullflowerr
+	@author driftingAurora, dullflowerr, alias; kioukaii
 	@time June 12, 2026
 ]]
 
@@ -20,6 +20,7 @@ local imports = {
     Suggestions = require("./suggestions"),
 
     View = require("../misc/view"),
+    Placement = require("../misc/placement"),
     Text = require("../misc/text"),
     Hints = require("./hints"),
 
@@ -70,10 +71,6 @@ local function copyHistory(items)
     return out
 end
 
-local function shifted(position, offset)
-    return UDim2.new(position.X.Scale, position.X.Offset, position.Y.Scale, position.Y.Offset + offset)
-end
-
 local function setDraggingEnabled(self, enabled)
     local refs = self.refs
 
@@ -86,9 +83,16 @@ local function syncAttachedSecond(self)
         return
     end
 
-    local position = self.refs.root.Position
+    local refs = self.refs
+    local mainHeight = math.max(refs.pill.Size.Y.Offset, self.config.panel.height)
+    local position = imports.Placement.attachedSecond(
+        refs.root.Position,
+        refs.root,
+        mainHeight,
+        self.config.panel.stackGap or 8
+    )
 
-    self.refs.secondRoot.Position = position
+    refs.secondRoot.Position = position
     self.secondRootPosition = position
 end
 
@@ -113,9 +117,9 @@ local function detachSecond(self)
     refs.secondRoot.Visible = true
     refs.secondPill.Visible = true
 
-    refs.secondDragging.setPosition(rootPosition)
+    refs.secondDragging.setPosition(refs.secondRoot.Position)
 
-    local mainPosition = shifted(rootPosition, -stackExtra)
+    local mainPosition = imports.Placement.withoutStack(rootPosition, refs.root, stackExtra)
 
     Tween.to(refs.root, { Position = mainPosition }, 0)
 
@@ -157,7 +161,7 @@ local function attachAddChat(self, savedMainPosition)
     refs.pillBtn.Position = UDim2.new(0.5, 0, 1, -stackExtra)
     refs.pill.Position = UDim2.new(0.5, 0, 1, -stackExtra)
 
-    local rootPosition = shifted(mainPosition, stackExtra)
+    local rootPosition = imports.Placement.withStack(mainPosition, refs.root, stackExtra)
 
     refs.mainDragging.setPosition(rootPosition)
 end
@@ -420,14 +424,21 @@ local function bindRefs(self)
         refs.secondRoot.Visible = true
         refs.secondPill.Visible = true
 
-        refs.secondRoot.Position = refs.root.Position
+        local secondPosition = imports.Placement.attachedSecond(
+            refs.root.Position,
+            refs.root,
+            self:mainHeight(),
+            self.config.panel.stackGap or 8
+        )
+
+        refs.secondRoot.Position = secondPosition
         refs.secondRoot.Size = refs.addChatPill.Size
 
 
         refs.secondPill.BackgroundTransparency = refs.addChatPill.BackgroundTransparency
         refs.secondPill.Size = refs.addChatPill.Size
 
-        self.secondRootPosition = refs.root.Position
+        self.secondRootPosition = secondPosition
         self.activeChannel = 2
 
         refs.secondPill.Position = UDim2.new(0.5, 0, 1, 0)
@@ -872,7 +883,12 @@ function Session:expand()
     if self.hasSecondChat then
         local secondPosition = self.secondDetached
                 and (typeof(self.secondRootPosition) == "UDim2" and self.secondRootPosition or self.refs.secondRoot.Position)
-            or rootPosition
+            or imports.Placement.attachedSecond(
+                rootPosition,
+                self.refs.root,
+                self:mainHeight(),
+                self.config.panel.stackGap or 8
+            )
 
         self.secondRootPosition = secondPosition
 
@@ -1142,7 +1158,12 @@ function Session:restoreSnapshot(data)
     end
 
     if self.hasSecondChat and not self.secondDetached and typeof(self.rootPosition) == "UDim2" then
-        self.secondRootPosition = self.rootPosition
+        self.secondRootPosition = imports.Placement.attachedSecond(
+            self.rootPosition,
+            self.refs.root,
+            self:mainHeight(),
+            self.config.panel.stackGap or 8
+        )
     end
 
     self.lineCache = {}

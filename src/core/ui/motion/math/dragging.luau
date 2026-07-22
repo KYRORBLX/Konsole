@@ -2,7 +2,7 @@
 
 --[[
 	@name dragging
-	@author driftingAurora, dullflowerr
+	@author driftingAurora, dullflowerr, alias; kioukaii
 	@time July 10, 2026
 ]]
 
@@ -104,8 +104,12 @@ function Dragging.attach(
 	local function setPosition(position: UDim2)
 		local boundsSize = bounds.AbsoluteSize
 		if boundsSize.X > 0 and boundsSize.Y > 0 then
-			local point = clampPoint(pointFrom(position, boundsSize), root, boundsSize)
-			position = positionFrom(point, boundsSize)
+			local point = pointFrom(position, boundsSize)
+			local clamped = clampPoint(point, root, boundsSize)
+
+			if (clamped - point).Magnitude > 0.01 then
+				position = positionFrom(clamped, boundsSize)
+			end
 		end
 
         target = position

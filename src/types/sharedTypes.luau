@@ -2,7 +2,7 @@
 
 --[[
 	@name sharedTypes
-	@author driftingAurora, dullflowerr
+	@author driftingAurora, dullflowerr, alias; kioukaii
 	@time June 13, 2026
 ]]
 
@@ -40,7 +40,7 @@ export type DispatchModule = {
 export type RanksModule = {
 	read define: (id: number, name: string, aliases: { string }?) -> Rank,
 	read allows: (entity: any, required: any) -> boolean,
-	read set: (userId: any, rank: any) -> number,
+	read set: (userId: any, rank: number | string) -> number,
 
 	read resolve: (value: any) -> number?,
 	read get: (entity: any) -> number,

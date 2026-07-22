@@ -2,7 +2,7 @@
 
 --[[
 	@name uiTypes
-	@author driftingAurora, dullflowerr
+	@author driftingAurora, dullflowerr, alias; kioukaii
 	@time June 30, 2026
 ]]
 

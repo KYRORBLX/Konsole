@@ -1,21 +1,18 @@
 --[[
 	@name reveal
-	@author driftingAurora, dullflowerr
+	@author driftingAurora, dullflowerr, alias; kioukaii
 	@time June 13, 2026
 ]]
 
 --// imports
 local imports = {
 	Math = require("../math"),
+	Placement = require("../../elements/misc/placement"),
 }
 
 local Tween = imports.Math.tween
 
 --// locals
-local function shifted(position, offset)
-	return UDim2.new(position.X.Scale, position.X.Offset, position.Y.Scale, position.Y.Offset + offset)
-end
-
 local function savedPosition(session, key, root)
 	local position = session[key]
 	return typeof(position) == "UDim2" and position or root.Position
@@ -39,7 +36,7 @@ function Reveal.prepare(session)
     session.secondRootPosition = secondPosition
     session.rootPosition = position
     
-	refs.root.Position = shifted(position, motion.openSlideOffset or 44)
+	refs.root.Position = imports.Placement.slide(position, refs.root, motion.openSlideOffset or 44)
 	refs.root.Size = UDim2.fromOffset(0, panel.height)
     refs.pill.Size = UDim2.fromOffset(0, panel.height)
     
@@ -51,7 +48,7 @@ function Reveal.prepare(session)
     refs.pillPad.PaddingLeft = UDim.new(0, layout.paddingX + slide)
 	refs.InputBox.Visible = false
 
-	refs.secondRoot.Position = shifted(secondPosition, motion.openSlideOffset or 44)
+	refs.secondRoot.Position = imports.Placement.slide(secondPosition, refs.secondRoot, motion.openSlideOffset or 44)
 	refs.secondRoot.Size = UDim2.fromOffset(0, panel.height)
     refs.secondPill.Size = UDim2.fromOffset(0, panel.height)
     
@@ -252,7 +249,7 @@ function Reveal.close(session)
 		end
         
 		Tween.to(refs.root, {
-			Position = shifted(position, motion.openSlideOffset or 44),
+			Position = imports.Placement.slide(position, refs.root, motion.openSlideOffset or 44),
 			Size = UDim2.fromOffset(0, panel.height),
         }, slideTime)
         
@@ -269,7 +266,7 @@ function Reveal.close(session)
 
 		if showSecondChat and refs.secondRoot then
 			Tween.to(refs.secondRoot, {
-				Position = shifted(secondPosition, motion.openSlideOffset or 44),
+				Position = imports.Placement.slide(secondPosition, refs.secondRoot, motion.openSlideOffset or 44),
 				Size = UDim2.fromOffset(0, panel.height),
             }, slideTime)
             

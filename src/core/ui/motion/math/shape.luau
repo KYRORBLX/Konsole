@@ -1,12 +1,13 @@
 --[[
 	@name shape
-	@author driftingAurora, dullflowerr
+	@author driftingAurora, dullflowerr, alias; kioukaii
 	@time June 13, 2026
 ]]
 
 --// imports
 local imports = {
 	Math = require("../math"),
+	Placement = require("../../elements/misc/placement"),
 }
 
 local Tween = imports.Math.tween
@@ -196,13 +197,26 @@ local function layoutAddChat(session, time, width, showAddChat, layoutSeq)
 	end)
 end
 
-local function layoutSecond(session, time, width, showSecondChat, layoutSeq)
+local function layoutSecond(session, time, width, showSecondChat, layoutSeq, mainHeight)
 	local refs = session.refs
 	local panel = session.config.panel
 	local transparency = session.config.transparency
 
 	if showSecondChat then
         local height = session:secondHeight()
+		local rootTarget = { Size = UDim2.fromOffset(width, height) }
+
+		if not session.secondDetached then
+			local position = imports.Placement.attachedSecond(
+				refs.root.Position,
+				refs.root,
+				mainHeight or session:mainHeight(),
+				panel.stackGap or 8
+			)
+
+			rootTarget.Position = position
+			session.secondRootPosition = position
+		end
         
 		refs.secondRoot.Visible = true
         refs.secondPill.Visible = true
@@ -216,7 +230,7 @@ local function layoutSecond(session, time, width, showSecondChat, layoutSeq)
 			Tween.fade(refs.secondShadow, { ImageTransparency = transparency.shadow }, time)
         end
         
-		Tween.to(refs.secondRoot, { Size = UDim2.fromOffset(width, height) }, time)
+		Tween.to(refs.secondRoot, rootTarget, time)
 		Tween.to(refs.secondPill, {
             BackgroundTransparency = transparency.panel,
             Size = UDim2.fromOffset(width, height),
@@ -288,7 +302,12 @@ local function layoutSecond(session, time, width, showSecondChat, layoutSeq)
 	local rootTarget = { Size = UDim2.fromOffset(targetWidth, targetHeight) }
 
 	if closingToAdd then
-		rootTarget.Position = refs.root.Position
+		rootTarget.Position = imports.Placement.attachedSecond(
+			refs.root.Position,
+			refs.root,
+			session:mainHeight(),
+			panel.stackGap or 8
+		)
 	end
 
 	Tween.to(refs.secondRoot, rootTarget, time)
@@ -355,7 +374,7 @@ function Shape.layout(session, duration, targetWidth)
 	layoutAddChat(session, time, width, showAddChat, layoutSeq)
 
 	if not session.secondDetached or not showSecondChat then
-		layoutSecond(session, time, width, showSecondChat, layoutSeq)
+		layoutSecond(session, time, width, showSecondChat, layoutSeq, mainHeight)
 	end
 
 	if typeof(refs.suggList) == "Instance" and not session.suggestionsHiding then

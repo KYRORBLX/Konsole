@@ -2,7 +2,7 @@
 
 --[[
 	@name ranks
-	@author driftingAurora, dullflowerr
+	@author driftingAurora, dullflowerr, alias; kioukaii
 	@time June 13, 2026
 ]]
 
@@ -35,8 +35,12 @@ local function normalize(value: any): string
 end
 
 local function userIdOf(entity: any): number?
-	if typeof(entity) == "Instance" and entity:IsA("Player") then
-		return entity.UserId
+	if typeof(entity) == "Instance" then
+		local instance = entity :: Instance
+
+		if instance:IsA("Player") then
+			return (instance :: Player).UserId
+		end
 	end
 
 	return tonumber(entity)
@@ -112,10 +116,10 @@ function Ranks.list(): { Rank }
 	return out
 end
 
-function Ranks.set(userId: any, rank: any): number
+function Ranks.set(userId: any, rank: number | string): number
 	local id = Ranks.resolve(rank)
 
-	assert(type(id) == "number", "rank must resolve to a number")
+	assert(type(id) == "number", "rank must be a number or registered rank name")
 
 	assignments[tonumber(userId) or 0] = id
 

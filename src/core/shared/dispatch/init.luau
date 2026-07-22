@@ -2,7 +2,7 @@
 
 --[[
 	@name dispatch
-	@author driftingAurora, dullflowerr
+	@author driftingAurora, dullflowerr, alias; kioukaii
 	@time June 13, 2026
 ]]
 
@@ -33,7 +33,7 @@ export type Run = Types.Run
 --// locals
 local Dispatch = {
     definitionsRemoteName = "KonsoleDefinitions",
-    remoteName = "Konsole",
+    remoteName = "KonsoleRemote",
     timeout = 8,
 }
 
@@ -71,8 +71,12 @@ end
 
 local function cooldownKey(entity: any): string
 
-    if typeof(entity) == "Instance" and entity:IsA("Player") then
-        return tostring(entity.UserId)
+    if typeof(entity) == "Instance" then
+        local instance = entity :: Instance
+
+        if instance:IsA("Player") then
+            return tostring((instance :: Player).UserId)
+        end
     end
 
     return tostring(entity or "server")
@@ -315,7 +319,13 @@ function Dispatch.execute(text: any, entity: any): any
         return invokeServer(text)
     end
 
-    return runDefinition(kommand, tokens, imports.Players.LocalPlayer, text)
+    local player = imports.Players.LocalPlayer
+
+    if not imports.Ranks.allows(player, kommand.rank) then
+        return fail("not-authorized", `"{kommand.name}" requires rank {kommand.rank}+`)
+    end
+
+    return runDefinition(kommand, tokens, player, text)
 end
 
 --[[ 

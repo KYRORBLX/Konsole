@@ -2,7 +2,7 @@
 
 --[[
 	@name Konsole
-	@author driftingAurora, dullflowerr
+	@author driftingAurora, dullflowerr, alias; kioukaii
 	@time June 12, 2026
 ]]
 
@@ -139,7 +139,7 @@ function Konsole.run(text: string): Outcome
 	return imports.core.shared.dispatch.execute(text)
 end
 
-function Konsole.setRank(userId: any, rank: any): number
+function Konsole.setRank(userId: any, rank: number | string): number
 	return imports.core.shared.ranks.set(userId, rank)
 end
 

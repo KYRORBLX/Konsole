@@ -52,7 +52,7 @@ For Wally:
 
 ```toml
 [dependencies]
-Konsole = "kyrorblx/konsole@0.1.9"
+Konsole = "kyrorblx/konsole@0.1.10"
 ```
 
 Konsole is shared, but the UI is client-side. The server hosts command execution. The client shows the command bar and forwards server commands through Konsole's remote bridge.
@@ -117,7 +117,7 @@ Konsole.focus()
 Konsole ships with a few small commands:
 
 - `cmds`: lists registered commands, rank, usage, and description
-- `clear` / `cls`: clears the active Konsole chat pane
+- `clear` / `cls` / `clr`: clears the active Konsole chat pane
 - `ranks`: lists known ranks
 - `bring`: brings target players to you
 - `tp`: teleports you to a target player
@@ -440,6 +440,7 @@ local client = Konsole.create({
 		forceclose = true, -- outside click fully closes instead of only releasing input focus
 	},
 	panel = {
+		position = "bc", -- accepts a udim2 or a named position
 		width = 280,
 		outputWidth = 380,
 		historyMaxHeight = 420,
@@ -464,6 +465,7 @@ Config groups:
 
 Common panel options:
 
+- `position`: a `UDim2`, or `br`, `tr`, `tl`, `bl`, `bc`, `tc` (full names such as `bottom right` also work)
 - `width`: base input width
 - `outputWidth`: base width once history exists
 - `maxWidth`: maximum width

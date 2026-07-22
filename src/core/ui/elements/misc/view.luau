@@ -1,11 +1,12 @@
 --[[
 	@name view
-	@author driftingAurora, dullflowerr
+	@author driftingAurora, dullflowerr, alias; kioukaii
 	@time June 12, 2026
 ]]
 
 --// imports
 local imports = {
+    Placement = require("./placement"),
     Text = require("./text"),
 }
 
@@ -382,7 +383,7 @@ function View.createTree(session, gui)
     local pillHeight = panel.height
     local startWidth = pillHeight
     
-    local startPosition = UDim2.new(0.5, 0, 1, -(pillHeight / 2))
+    local startPosition, startAnchor = imports.Placement.resolve(panel.position, pillHeight / 2)
 
     local root = View.make("Frame", {
         BackgroundTransparency = 1,
@@ -392,7 +393,7 @@ function View.createTree(session, gui)
         ClipsDescendants = false,
         Position = startPosition,
         
-        AnchorPoint = Vector2.new(0.5, 1),
+        AnchorPoint = startAnchor,
         Size = UDim2.fromOffset(startWidth, pillHeight),
         
         Name = "TerminalRoot",
@@ -409,7 +410,7 @@ function View.createTree(session, gui)
         ClipsDescendants = false,
         Visible = false,
         
-        AnchorPoint = Vector2.new(0.5, 1),
+        AnchorPoint = startAnchor,
         Size = UDim2.fromOffset(startWidth, 0),
 
         Name = "SecondTerminalRoot",
@@ -423,6 +424,8 @@ function View.createTree(session, gui)
     refs.stackShadow = createShadow(root, "StackShadow", config, 26, false)
     refs.pillShadow = createShadow(root, "PillShadow", config, 27, true)
 
+    local suggestionPosition, suggestionAnchor = imports.Placement.suggestion(root, panel.suggestionGap)
+
     local suggList = View.make("ScrollingFrame", {
         ScrollingEnabled = true,
         Active = true,
@@ -435,10 +438,10 @@ function View.createTree(session, gui)
         BorderSizePixel = 0,
         ZIndex = 28,
 
-        Position = UDim2.new(0.5, 0, 0, -panel.suggestionGap),
+        Position = suggestionPosition,
         Size = UDim2.fromOffset(panel.width, 0),
         CanvasSize = UDim2.fromOffset(0, 0),
-        AnchorPoint = Vector2.new(0.5, 1),
+        AnchorPoint = suggestionAnchor,
         
         BackgroundColor3 = colors.suggPanel,
 

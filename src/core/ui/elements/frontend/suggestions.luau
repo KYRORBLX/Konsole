@@ -1,6 +1,6 @@
 --[[
 	@name suggestions
-	@author driftingAurora, dullflowerr
+	@author driftingAurora, dullflowerr, alias; kioukaii
 	@time June 12, 2026
 ]]
 
@@ -250,8 +250,8 @@ function Suggestions.attach(Session)
 
 		local suggList = self.refs.suggList
 		if suggList:IsA("ScrollingFrame") then
-			local top = 2 + ((self.selectedSuggestion - 1) * rowHeight)
 			local rowHeight = self.config.panel.suggestionHeight
+			local top = 2 + ((self.selectedSuggestion - 1) * rowHeight)
 
 			local position = suggList.CanvasPosition.Y
 			local bottom = top + rowHeight
@@ -411,6 +411,7 @@ function Suggestions.attach(Session)
 			return true
 		end
 
+		local channel = self.activeChannel
 		local input = self:activeInput()
 		if typeof(input) ~= "Instance" then
 			return false
@@ -419,15 +420,18 @@ function Suggestions.attach(Session)
         local newText = suggestion
         
 		local schema = type(self.argSchemas) == "table" and self.argSchemas[string.lower(suggestion)]
-		if type(schema) == "table" and #schema > 0 and not string.find(suggestion, " ", 1, true) then
-			newText ..= " "
+		local hasArguments = type(schema) == "table" and #schema > 0 and not string.find(suggestion, " ", 1, true)
+
+		if hasArguments then
+			self:enterStructured(channel, self:commandContext(newText))
+
+			return true
 		end
 
-        input.CursorPosition = #newText + 1
-        input.Text = newText
+		input.Text = newText
+		input:CaptureFocus()
+		input.CursorPosition = #newText + 1
 
-        input:CaptureFocus()
-        
 		task.defer(function()
 			if typeof(input) == "Instance" and input:IsFocused() then
                 input.CursorPosition = #newText + 1

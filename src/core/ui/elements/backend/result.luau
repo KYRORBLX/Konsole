@@ -2,7 +2,7 @@
 
 --[[
 	@name result
-	@author driftingAurora, dullflowerr
+	@author driftingAurora, dullflowerr, alias; kioukaii
 	@time June 12, 2026
 ]]
 
@@ -103,23 +103,27 @@ function Result.status(title: any?, rows: { { [string]: any } }?, options: Resul
 end
 
 function Result.from(value: any): RenderResult
-    if type(value) == "table" and type(value.kind) == "string" then
-        return value :: RenderResult
-    end
-
     if type(value) == "table" then
-        if value.ok == true then
-            local message = tostring(value.message or value.data or "")
+        local data = value :: { [string]: any }
+
+        if type(data.kind) == "string" then
+            return data :: RenderResult
+        end
+
+        local title = if type(data.title) == "string" then data.title else nil
+
+        if data.ok == true then
+            local message = tostring(data.message or data.data or "")
 
             if message == "" then
                 message = "Command completed."
             end
 
-            return Result.ok(message, { title = value.title })
+            return Result.ok(message, { title = title })
         end
 
-        return Result.err(value.code or "command-failed", value.message or value.err or "Command failed.", {
-            title = value.title,
+        return Result.err(data.code or "command-failed", data.message or data.err or "Command failed.", {
+            title = title,
         })
     end
 
