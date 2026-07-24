@@ -10,33 +10,35 @@ declare namespace Konsole {
 				type?: "string";
 				default?: string;
 				required?: boolean;
-				suggestions?: string[] | string;
+				suggestions?: readonly string[] | string;
 		}
 		| {
 				name?: string;
 				type: "number";
 				default?: number;
 				required?: boolean;
-				suggestions?: `${number}`[] | `${number}`;
+				suggestions?: readonly `${number}`[] | `${number}`;
 		}
 		| {
 				name?: string;
 				type: "boolean";
 				default?: boolean;
 				required?: boolean;
-				suggestions?: BooleanArgument[] | BooleanArgument;
+				suggestions?: readonly BooleanArgument[] | BooleanArgument;
 		}
 		| {
 				name?: string;
 				type: "player";
 				default?: never;
 				required?: boolean;
+				suggestions?: never;
 		}
 		| {
 				name?: string;
 				type: "players";
 				default?: never;
 				required?: boolean;
+				suggestions?: never;
 		};
 
 	export interface Outcome {
@@ -159,7 +161,7 @@ declare namespace Konsole {
 	export interface Rank {
 		id: number;
 		name: string;
-		aliases: string[];
+		aliases: readonly string[];
 		builtin?: boolean;
 	}
 
@@ -167,7 +169,7 @@ declare namespace Konsole {
 		readonly define: (id: number, name: string, aliases?: string[]) => Rank;
 		readonly resolve: (value: number | RankName) => number | undefined;
 		readonly label: (id: number) => string;
-		readonly list: () => Rank[];
+		readonly list: () => readonly Rank[];
 		readonly set: (userId: number | string, rank: number | RankName) => number;
 		readonly bind: (fn?: RankResolver) => void;
 		readonly get: (entity: RankEntity) => number;
@@ -203,7 +205,7 @@ declare namespace Konsole {
 		readonly define: (definition: Definition) => Command;
 		readonly find: (name: string) => Command | undefined;
 		readonly list: () => Command[];
-		readonly schemas: () => Record<string, Argument[]>;
+		readonly schemas: () => Record<string, readonly Argument[]>;
 		readonly suggestions: () => string[];
 		readonly watch: (fn?: () => void) => void;
 	}
@@ -314,7 +316,7 @@ declare namespace Konsole {
 			dimText: number;
 		};
 		input: {
-			activationKeys: Enum.KeyCode[];
+			activationKeys: readonly Enum.KeyCode[];
 			activationPriority: number;
 			forceclose: boolean;
 			command: string;
@@ -327,7 +329,7 @@ declare namespace Konsole {
 		};
 		commands: {
 			defaultLimit: number;
-			aliases: Record<string, string>;
+			aliases: Readonly<Record<string, string>>;
 		};
 	}
 
@@ -375,8 +377,8 @@ declare namespace Konsole {
 	export interface Command<A extends Args = Args, S extends string | undefined = string | undefined> {
 		name: string;
 		rank: number;
-		aliases: string[];
-		args: Argument[];
+		aliases: readonly string[];
+		args: readonly Argument[];
 		description: string;
 		cooldown: number;
 		server: S extends string ? ServerName<A> : undefined;
