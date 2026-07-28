@@ -110,11 +110,21 @@ declare namespace Konsole {
 		toggle: () => void;
 	}
 
+	export interface DispatchModule {
+		readonly remoteName: string;
+		readonly definitionsRemoteName: string;
+		readonly timeout: number;
+		definitionsCodec: {
+			encode: (list: Definition[]) => unknown;
+			decode: (payload: unknown) => Definition[];
+		};
+	}
+
 	export interface Api extends Client {
 		Arguments: unknown;
 		Chat: unknown;
 		Config: unknown;
-		Dispatch: unknown;
+		Dispatch: DispatchModule;
 		Kommand: unknown;
 		Ranks: unknown;
 		Render: unknown;

@@ -31,6 +31,17 @@ local Dispatch = {
 	definitionsRemoteName = "KonsoleDefinitions",
 	remoteName = "Konsole",
 	timeout = 8,
+
+	-- swap these to route the definitions payload through your own network
+	-- layer (eg. a buffer-based serdes) instead of raw table replication
+	definitionsCodec = {
+		encode = function(list: { Definition }): any
+			return list
+		end,
+		decode = function(payload: any): { Definition }
+			return payload
+		end,
+	},
 }
 
 local implementations: { [string]: Run } = {}
@@ -205,10 +216,10 @@ function Dispatch.host(serverImplementations: { [string]: Run }?)
 	local definitionsBridge = ensureDefinitionsRemote()
 	if definitionsBridge then
 		definitionsBridge.OnServerEvent:Connect(function(player)
-			definitionsBridge:FireClient(player, currentDefinitions())
+			definitionsBridge:FireClient(player, Dispatch.definitionsCodec.encode(currentDefinitions()))
 		end)
 		imports.Kommand.watch(function()
-			definitionsBridge:FireAllClients(currentDefinitions())
+			definitionsBridge:FireAllClients(Dispatch.definitionsCodec.encode(currentDefinitions()))
 		end)
 	end
 
@@ -287,7 +298,8 @@ if imports.RunService:IsClient() then
 			return
 		end
 
-		bridge.OnClientEvent:Connect(function(list: any)
+		bridge.OnClientEvent:Connect(function(payload: any)
+			local list = Dispatch.definitionsCodec.decode(payload)
 			if type(list) ~= "table" then
 				return
 			end
