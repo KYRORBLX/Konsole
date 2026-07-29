@@ -43,13 +43,25 @@ local Konsole = {
 local registered = false
 local defaultClient: Client = nil
 local builtinsExcluded: { [string]: boolean }? = nil
+local builtinsIncluded: { [string]: boolean }? = nil
 
 local function registerBuiltins(): ()
 	if registered then
 		return
 	end
 	registered = true
-	imports.cmds.register(imports.core.shared.kommand, builtinsExcluded)
+
+	local excluded = builtinsExcluded
+	if builtinsIncluded then
+		excluded = {}
+		for _, definition in imports.cmds.definitions do
+			if not builtinsIncluded[definition.name] then
+				excluded[definition.name] = true
+			end
+		end
+	end
+
+	imports.cmds.register(imports.core.shared.kommand, excluded)
 end
 
 --[[
@@ -61,6 +73,7 @@ end
 ]]
 function Konsole.excludeBuiltins(names: { BuiltinName }?): ()
 	assert(not registered, "Konsole.excludeBuiltins must be called before Konsole is used")
+	assert(builtinsIncluded == nil, "Konsole.excludeBuiltins cannot be used together with Konsole.includeBuiltins")
 	if names == nil then
 		builtinsExcluded = { all = true }
 		return
@@ -71,6 +84,23 @@ function Konsole.excludeBuiltins(names: { BuiltinName }?): ()
 		set[name] = true
 	end
 	builtinsExcluded = set
+end
+
+--[[
+	@description opposite of excludeBuiltins: drops every built-in EXCEPT the
+	names passed, e.g. Konsole.includeBuiltins("ban", "tp") keeps only those two.
+	cmds/clear stay registered regardless. Must be called before Konsole is used.
+	@time July 28, 2026
+]]
+function Konsole.includeBuiltins(...: BuiltinName): ()
+	assert(not registered, "Konsole.includeBuiltins must be called before Konsole is used")
+	assert(builtinsExcluded == nil, "Konsole.includeBuiltins cannot be used together with Konsole.excludeBuiltins")
+
+	local set = {}
+	for _, name in { ... } do
+		set[name] = true
+	end
+	builtinsIncluded = set
 end
 
 local function getDefaultClient(): Client

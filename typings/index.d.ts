@@ -432,6 +432,7 @@ declare namespace Konsole {
 		getRank: (entity: RankEntity) => number;
 		host: (serverImplementations?: Record<string, Run<Array<any>>>) => RemoteFunction | undefined;
 		implement: Implement;
+		includeBuiltins: (...names: Array<BuiltinName>) => void;
 		run: (text: string) => ExecuteResult;
 		setRank: (userId: number | string, rank: number | RankName) => number;
 

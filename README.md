@@ -137,7 +137,13 @@ Konsole.excludeBuiltins() -- drops all built-ins
 Konsole.excludeBuiltins({ "kick", "ban", "unban", "kill" }) -- drops just these
 ```
 
-`cmds` and `clear` are never dropped, even with no args — they're the only way to see or recover from a stripped command list once everything else is gone.
+Or flip it around with `Konsole.includeBuiltins(...)` to keep only the names you list, dropping every other built-in:
+
+```luau
+Konsole.includeBuiltins("ban", "tp") -- keeps only ban and tp
+```
+
+`cmds` and `clear` are never dropped either way, even with no args to `excludeBuiltins()` — they're the only way to see or recover from a stripped command list once everything else is gone. `excludeBuiltins` and `includeBuiltins` can't be used together.
 
 ## Commands
 
@@ -543,6 +549,7 @@ Konsole.define(definition)
 Konsole.implement(name, callback)
 Konsole.run(text)
 Konsole.excludeBuiltins(names?)
+Konsole.includeBuiltins(...names)
 
 Konsole.setRank(userId, rank)
 Konsole.getRank(entity)
