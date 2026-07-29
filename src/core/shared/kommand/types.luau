@@ -12,9 +12,11 @@ export type Converter = (token: string, caller: Caller) -> (boolean, any)
 
 export type Converters = { [string]: Converter }
 
+export type BuiltinArgumentType = "string" | "number" | "boolean" | "player" | "players"
+
 export type Argument = {
 	name: string?,
-	type: string?,
+	type: (BuiltinArgumentType | string)?,
 	default: any,
 	required: boolean?,
 	suggestions: ({ string } | string)?,
