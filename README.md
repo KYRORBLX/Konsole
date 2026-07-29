@@ -119,7 +119,7 @@ Konsole.focus()
 Konsole ships with a few small commands:
 
 - `cmds`: lists registered commands, rank, usage, and description
-- `clear` / `cls`: clears the active Konsole chat pane
+- `clear` / `cls` / `clr`: clears the active Konsole chat pane
 - `ranks`: lists known ranks
 - `bring`: brings target players to you
 - `tp`: teleports you to a target player
@@ -634,7 +634,7 @@ Argument shape:
 ```luau
 type Argument = {
 	name: string?,
-	type: string?,
+	type: ("string" | "number" | "boolean" | "player" | "players" | string)?,
 	default: any,
 	required: boolean?,
 	suggestions: ({ string } | string)?,

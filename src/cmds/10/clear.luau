@@ -7,7 +7,7 @@
 return table.freeze({
 	name = "clear",
 	rank = 0,
-	aliases = { "cls" },
+	aliases = { "cls", "clr" },
 	description = "Clears the console output.",
 	run = function(context)
 		return context.reply("cleared")
