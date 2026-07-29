@@ -138,6 +138,23 @@ Arguments.types = {
 	end,
 } :: Converters
 
+local builtinTypeNames = { string = true, number = true, boolean = true, player = true, players = true }
+
+--[[
+	@description register a custom argument type so `args = { { type = name } }`
+	can use it like any built-in. converter receives the raw token + the caller
+	and returns (ok, valueOrErrorMessage), same shape as the built-ins above.
+	Built-in type names can't be overwritten.
+	@time July 28, 2026
+]]
+function Arguments.register(name: string, converter: Converter): ()
+	local typeName = string.lower(tostring(name))
+	assert(typeName ~= "", "argument type name can't be empty")
+	assert(not builtinTypeNames[typeName], `"{typeName}" is a built-in argument type and can't be overwritten`)
+	assert(type(converter) == "function", "argument type converter must be a function")
+	Arguments.types[typeName] = converter
+end
+
 function Arguments.parse(argDefinitions: { Argument }?, tokens: { string }, caller: Caller): (boolean, any)
 	local values = {}
 	local definitions: { Argument } = if type(argDefinitions) == "table" then argDefinitions else {}

@@ -133,6 +133,16 @@ local function callDefault(method: string, ...: any): ...any
 	return client[method](client, ...)
 end
 
+--[[
+	@description register a custom argument type usable in `args = { { type = name } }`,
+	e.g. Konsole.registerType("team", function(token, caller) ... end).
+	Converter shape matches the built-ins: (token, caller) -> (ok, valueOrError).
+	@time July 28, 2026
+]]
+function Konsole.registerType(name: string, converter: (token: string, caller: Player?) -> (boolean, any)): ()
+	imports.core.shared.arguments.register(name, converter)
+end
+
 function Konsole.create(options: any?): Client
 	registerBuiltins()
 	return imports.core.ui.render.new(options)

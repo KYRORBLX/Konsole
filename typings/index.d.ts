@@ -39,6 +39,13 @@ declare namespace Konsole {
 				type: "players";
 				default?: never;
 				required?: boolean;
+		}
+		| {
+				name?: string;
+				type: string & {};
+				default?: unknown;
+				required?: boolean;
+				suggestions?: string[] | string;
 		};
 
 	export interface Outcome {
@@ -433,6 +440,7 @@ declare namespace Konsole {
 		host: (serverImplementations?: Record<string, Run<Array<any>>>) => RemoteFunction | undefined;
 		implement: Implement;
 		includeBuiltins: (...names: Array<BuiltinName>) => void;
+		registerType: (name: string, converter: Converter) => void;
 		run: (text: string) => ExecuteResult;
 		setRank: (userId: number | string, rank: number | RankName) => number;
 

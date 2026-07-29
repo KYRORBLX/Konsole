@@ -275,6 +275,31 @@ For `player`, the token must resolve to exactly one player. For `players`, it ca
 
 Konsole also uses argument metadata for the UI. When you type a command with args, it shows argument chips. Fixed-token args like `number` and `boolean` jump to the next chip when you press space. Bad argument types turn red while typing.
 
+### Custom Argument Types
+
+Register your own type with `Konsole.registerType(name, converter)`. The converter gets the raw token (and the calling player, if any) and returns `ok, valueOrErrorMessage` — same shape as the built-ins:
+
+```luau
+Konsole.registerType("team", function(token: string, caller: Player?): (boolean, any)
+	local team = game:GetService("Teams"):FindFirstChild(token)
+	if not team then
+		return false, `no team named "{token}"`
+	end
+	return true, team
+end)
+
+Konsole.define({
+	name = "setteam",
+	args = {
+		{ name = "player", type = "player", required = true },
+		{ name = "team", type = "team", required = true },
+	},
+	server = "setteam",
+})
+```
+
+Built-in type names (`string`, `number`, `boolean`, `player`, `players`) can't be overwritten. Register custom types before any command that uses them is defined.
+
 ## Suggestions
 
 Suggestions come from command names, aliases, and argument providers.
@@ -550,6 +575,7 @@ Konsole.implement(name, callback)
 Konsole.run(text)
 Konsole.excludeBuiltins(names?)
 Konsole.includeBuiltins(...names)
+Konsole.registerType(name, converter)
 
 Konsole.setRank(userId, rank)
 Konsole.getRank(entity)
