@@ -102,6 +102,7 @@ declare namespace Konsole {
 		T["type"] extends "boolean" ? boolean :
 		T["type"] extends "player" ? Player :
 		T["type"] extends "players" ? Player[] :
+		T["type"] extends TypeName<infer V> ? V :
 		string;
 
 	/**
@@ -206,7 +207,16 @@ declare namespace Konsole {
 	 * Converts one typed token. Returns `[true, value]` on success or
 	 * `[false, errorMessage]` on failure.
 	 */
-	export type Converter = (token: string, caller?: Player) => LuaTuple<[boolean, unknown]>;
+	export type Converter<T = unknown> = (token: string, caller?: Player) => LuaTuple<[boolean, T]>;
+
+	/**
+	 * A custom argument type name branded with the value its converter
+	 * produces. `Konsole.registerType` returns one of these so referencing
+	 * it from `args` types the callback parameter as `T` instead of `unknown`
+	 * (same trick `ServerName` uses for `implement`). At runtime it's a
+	 * plain string.
+	 */
+	export type TypeName<T = unknown> = string & { readonly __value: T };
 
 	export interface ArgumentsModule {
 		/** Built-in converter registry (`string`, `number`, `boolean`, `player`, `players`). */
@@ -441,7 +451,7 @@ declare namespace Konsole {
 		host: (serverImplementations?: Record<string, Run<Array<any>>>) => RemoteFunction | undefined;
 		implement: Implement;
 		includeBuiltins: (...names: Array<BuiltinName>) => void;
-		registerType: (name: string, converter: Converter) => void;
+		registerType: <T = unknown>(name: string, converter: Converter<T>) => TypeName<T>;
 		run: (text: string) => ExecuteResult;
 		setRank: (userId: number | string, rank: number | RankName) => number;
 
