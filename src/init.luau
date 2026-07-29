@@ -40,13 +40,35 @@ local Konsole = {
 
 local registered = false
 local defaultClient: Client = nil
+local builtinsExcluded: { [string]: boolean }? = nil
 
 local function registerBuiltins(): ()
 	if registered then
 		return
 	end
 	registered = true
-	imports.cmds.register(imports.core.shared.kommand)
+	imports.cmds.register(imports.core.shared.kommand, builtinsExcluded)
+end
+
+--[[
+	@description opt out of Konsole's built-in commands (bring/clear/close/ranks/
+	unban/cmds/kick/kill/ban/tp) so they don't register or replicate at all.
+	Call with no args (or nil) to drop all of them, or a list of names to drop
+	just those. Must be called before Konsole.create/host/run/define first runs.
+	@time July 28, 2026
+]]
+function Konsole.excludeBuiltins(names: { string }?): ()
+	assert(not registered, "Konsole.excludeBuiltins must be called before Konsole is used")
+	if names == nil then
+		builtinsExcluded = { all = true }
+		return
+	end
+
+	local set = {}
+	for _, name in names do
+		set[name] = true
+	end
+	builtinsExcluded = set
 end
 
 local function getDefaultClient(): Client

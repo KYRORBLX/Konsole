@@ -75,6 +75,8 @@ The usual setup is:
 
 Inline `run` commands can run where they are registered. Server commands should usually use `server = "name"` with `Konsole.implement("name", callback)` or pass implementations into `Konsole.host(...)`.
 
+Command definitions replicate over a single packed `buffer`, not a raw table or JSON string — a fixed binary schema (no key names on the wire), string interning for repeated values (ranks, arg names, aliases), and a small built-in LZSS compression pass. All of this is native to Luau; there's no external dependency involved.
+
 ## Using It
 
 Server setup:
@@ -127,6 +129,15 @@ Konsole ships with a few small commands:
 - `kill`: kills a player
 
 The ban command is server-local. It blocks players for the lifetime of that server, not permanently across all servers. If you want persistent bans, store ban state in a DataStore and implement your own `banServer` / `unbanServer`.
+
+If you don't want the built-ins at all, call `Konsole.excludeBuiltins()` before anything else touches Konsole (before `host`/`create`/`define`/`run`):
+
+```luau
+Konsole.excludeBuiltins() -- drops all built-ins
+Konsole.excludeBuiltins({ "kick", "ban", "unban", "kill" }) -- drops just these
+```
+
+`cmds` and `clear` are never dropped, even with no args — they're the only way to see or recover from a stripped command list once everything else is gone.
 
 ## Commands
 

@@ -26,6 +26,7 @@ export type Command = Types.Command
 export type Context = Types.Context
 export type Outcome = Types.Outcome
 export type Run = Types.Run
+type Argument = Types.Argument
 
 local Dispatch = {
 	definitionsRemoteName = "KonsoleDefinitions",
@@ -161,9 +162,404 @@ end
 	@description fns can't cross a Remote so a kommand is stripped down to its
  	plain-data schema before being sent to clients (server stays authoritative of course
 	on `run` clients only need enough to route the call back via `server`)
-	
+
 	@time June 4, 2026 11:52 AM
 ]]
+
+--[[
+	@description binary codec for the definitions list -- fixed field order so
+	no key names ever hit the wire (unlike JSON), string.pack/unpack are
+	built into Luau so this needs nothing outside the engine. An empty string
+	is used as the "absent" sentinel for optional string fields (name/
+	description/server) rather than a separate tag byte, since none of those
+	are meaningfully used as an actual empty string vs unset.
+]]
+--[[
+	@description names, rank strings, and suggestion strings repeat a lot across
+	a real command set (e.g. rank = "admin" on half the commands, arg name
+	"player"/"target" reused everywhere) -- pooling them once and referencing by
+	index instead of re-sending the literal text each time cuts real bytes.
+	Descriptions are intentionally NOT pooled: they're long, mostly-unique
+	sentences, so a pool entry would cost more than just inlining them.
+]]
+type Pool = { list: { string }, index: { [string]: number } }
+
+local function internString(pool: Pool, value: string?): ()
+	if value and not pool.index[value] then
+		table.insert(pool.list, value)
+		pool.index[value] = #pool.list
+	end
+end
+
+local function buildPool(list: { Definition }): Pool
+	local pool: Pool = { list = {}, index = {} }
+
+	for _, definition in list do
+		if type(definition.rank) == "string" then
+			internString(pool, definition.rank :: string)
+		end
+		internString(pool, definition.server)
+
+		if definition.aliases then
+			for _, alias in definition.aliases do
+				internString(pool, alias)
+			end
+		end
+
+		if definition.args then
+			for _, arg in definition.args do
+				internString(pool, arg.name)
+				if type(arg.suggestions) == "string" then
+					internString(pool, arg.suggestions :: string)
+				elseif type(arg.suggestions) == "table" then
+					for _, s in arg.suggestions :: { string } do
+						internString(pool, s)
+					end
+				end
+			end
+		end
+	end
+
+	return pool
+end
+
+local function packPool(pool: Pool): string
+	local out = string.pack("<H", #pool.list)
+	for _, s in pool.list do
+		out ..= string.pack("<s1", s)
+	end
+	return out
+end
+
+local function unpackPool(data: string, pos: number): ({ string }, number)
+	local count
+	count, pos = string.unpack("<H", data, pos)
+	local list = {}
+	for i = 1, count do
+		list[i], pos = string.unpack("<s1", data, pos)
+	end
+	return list, pos
+end
+
+local function packStringArray(list: { string }?, pool: Pool): string
+	local out = string.pack("<B", list and #list or 0)
+	if list then
+		for _, s in list do
+			out ..= string.pack("<H", pool.index[s])
+		end
+	end
+	return out
+end
+
+local function unpackStringArray(data: string, pos: number, pool: { string }): ({ string }, number)
+	local count
+	count, pos = string.unpack("<B", data, pos)
+	local out = {}
+	for i = 1, count do
+		local idx
+		idx, pos = string.unpack("<H", data, pos)
+		out[i] = pool[idx]
+	end
+	return out, pos
+end
+
+local function packRank(rank: (number | string)?, pool: Pool): string
+	if type(rank) == "number" then
+		return string.pack("<Bd", 1, rank)
+	elseif type(rank) == "string" then
+		return string.pack("<BH", 2, pool.index[rank])
+	end
+	return string.pack("<B", 0)
+end
+
+local function unpackRank(data: string, pos: number, pool: { string }): (any, number)
+	local tag
+	tag, pos = string.unpack("<B", data, pos)
+	if tag == 1 then
+		return string.unpack("<d", data, pos)
+	elseif tag == 2 then
+		local idx
+		idx, pos = string.unpack("<H", data, pos)
+		return pool[idx], pos
+	end
+	return nil, pos
+end
+
+-- shared by Argument.default (string | number | boolean | nil); default values
+-- are typically unique per-argument so they're inlined, not pooled
+local function packAny(value: any): string
+	if type(value) == "string" then
+		return string.pack("<B", 1) .. string.pack("<s1", value)
+	elseif type(value) == "number" then
+		return string.pack("<Bd", 2, value)
+	elseif type(value) == "boolean" then
+		return string.pack("<BB", 3, if value then 1 else 0)
+	end
+	return string.pack("<B", 0)
+end
+
+local function unpackAny(data: string, pos: number): (any, number)
+	local tag
+	tag, pos = string.unpack("<B", data, pos)
+	if tag == 1 then
+		return string.unpack("<s1", data, pos)
+	elseif tag == 2 then
+		return string.unpack("<d", data, pos)
+	elseif tag == 3 then
+		local n
+		n, pos = string.unpack("<B", data, pos)
+		return n == 1, pos
+	end
+	return nil, pos
+end
+
+local argumentTypeTags: { [string]: number } = { string = 1, number = 2, boolean = 3, player = 4, players = 5 }
+local argumentTypeNames: { [number]: string } = { "string", "number", "boolean", "player", "players" }
+
+local function packArgument(arg: Argument, pool: Pool): string
+	local typeTag = (arg.type and argumentTypeTags[arg.type]) or 0
+	local flags = bit32.bor(bit32.lshift(typeTag, 1), if arg.required then 1 else 0)
+	local nameIdx = if arg.name then pool.index[arg.name] else 0
+	local out = string.pack("<H", nameIdx) .. string.pack("<B", flags) .. packAny(arg.default)
+
+	if type(arg.suggestions) == "table" then
+		out ..= string.pack("<B", 2) .. packStringArray(arg.suggestions :: { string }, pool)
+	elseif type(arg.suggestions) == "string" then
+		out ..= string.pack("<BH", 1, pool.index[arg.suggestions])
+	else
+		out ..= string.pack("<B", 0)
+	end
+
+	return out
+end
+
+local function unpackArgument(data: string, pos: number, pool: { string }): (Argument, number)
+	local nameIdx, flags, suggestionsTag: number
+	nameIdx, pos = string.unpack("<H", data, pos)
+	flags, pos = string.unpack("<B", data, pos)
+	local argType = bit32.rshift(flags, 1)
+	local required = bit32.band(flags, 1)
+	local default
+	default, pos = unpackAny(data, pos)
+	suggestionsTag, pos = string.unpack("<B", data, pos)
+
+	local suggestions: any = nil
+	if suggestionsTag == 2 then
+		suggestions, pos = unpackStringArray(data, pos, pool)
+	elseif suggestionsTag == 1 then
+		local idx
+		idx, pos = string.unpack("<H", data, pos)
+		suggestions = pool[idx]
+	end
+
+	return {
+		name = if nameIdx ~= 0 then pool[nameIdx] else nil,
+		type = argumentTypeNames[argType],
+		default = default,
+		required = required == 1,
+		suggestions = suggestions,
+	}, pos
+end
+
+local function packDefinition(definition: Definition, pool: Pool): string
+	local out = string.pack("<s1", definition.name)
+		.. packRank(definition.rank, pool)
+		.. packStringArray(definition.aliases, pool)
+
+	local args = definition.args
+	out ..= string.pack("<B", args and #args or 0)
+	if args then
+		for _, arg in args do
+			out ..= packArgument(arg, pool)
+		end
+	end
+
+	out ..= string.pack("<s1", definition.description or "")
+
+	if definition.cooldown and definition.cooldown > 0 then
+		out ..= string.pack("<Bf", 1, definition.cooldown)
+	else
+		out ..= string.pack("<B", 0)
+	end
+
+	if definition.server then
+		out ..= string.pack("<BH", 1, pool.index[definition.server])
+	else
+		out ..= string.pack("<B", 0)
+	end
+
+	return out
+end
+
+local function unpackDefinition(data: string, pos: number, pool: { string }): (Definition, number)
+	local name: string
+	local argCount: number
+	local description: string
+	local cooldown: number
+	name, pos = string.unpack("<s1", data, pos)
+
+	local rank
+	rank, pos = unpackRank(data, pos, pool)
+
+	local aliases
+	aliases, pos = unpackStringArray(data, pos, pool)
+
+	argCount, pos = string.unpack("<B", data, pos)
+	local args = {}
+	for i = 1, argCount do
+		args[i], pos = unpackArgument(data, pos, pool)
+	end
+
+	description, pos = string.unpack("<s1", data, pos)
+
+	local cooldownTag: number
+	cooldownTag, pos = string.unpack("<B", data, pos)
+	if cooldownTag == 1 then
+		cooldown, pos = string.unpack("<f", data, pos)
+	else
+		cooldown = 0
+	end
+
+	local serverTag: number
+	serverTag, pos = string.unpack("<B", data, pos)
+	local serverName: string?
+	if serverTag == 1 then
+		local idx
+		idx, pos = string.unpack("<H", data, pos)
+		serverName = pool[idx]
+	end
+
+	return {
+		name = name,
+		rank = rank,
+		aliases = aliases,
+		args = args,
+		description = if description ~= "" then description else nil,
+		cooldown = cooldown,
+		server = serverName,
+	}, pos
+end
+
+--[[
+	@description a small dependency-free LZSS pass over the final packed bytes.
+	Matches minMatch=4+ so a match (3-byte token, amortized ~3.125 with its
+	control-bit) never costs more than the literals it replaces. Repeated
+	byte sequences show up a lot here (e.g. many arguments share the same
+	trailing type/flags/default/suggestions tag bytes), so this squeezes
+	real repetition string.pack's fixed schema can't see on its own.
+]]
+local lzWindow = 4096
+local lzMinMatch = 4
+local lzMaxMatch = 255
+
+local function lzCompress(data: string): string
+	local n = #data
+	local out = {}
+	local controlIndex = 0
+	local controlByte = 0
+	local bitCount = 0
+
+	local i = 1
+	while i <= n do
+		if bitCount == 0 then
+			table.insert(out, "\0")
+			controlIndex = #out
+			controlByte = 0
+		end
+
+		local bestLen = 0
+		local bestOffset = 0
+		local limit = math.min(lzMaxMatch, n - i + 1)
+		if limit >= lzMinMatch then
+			local searchStart = math.max(1, i - lzWindow)
+			for j = i - 1, searchStart, -1 do
+				local len = 0
+				while len < limit and string.byte(data, j + len) == string.byte(data, i + len) do
+					len += 1
+				end
+				if len > bestLen then
+					bestLen = len
+					bestOffset = i - j
+					if len == limit then
+						break
+					end
+				end
+			end
+		end
+
+		if bestLen >= lzMinMatch then
+			table.insert(out, string.pack("<HB", bestOffset, bestLen))
+			i += bestLen
+		else
+			controlByte = bit32.bor(controlByte, bit32.lshift(1, bitCount))
+			table.insert(out, string.char(string.byte(data, i)))
+			i += 1
+		end
+
+		bitCount += 1
+		out[controlIndex] = string.char(controlByte)
+		if bitCount == 8 then
+			bitCount = 0
+		end
+	end
+
+	return table.concat(out)
+end
+
+local function lzDecompress(data: string): string
+	local n = #data
+	local outChars = {}
+	local outLen = 0
+	local pos = 1
+
+	while pos <= n do
+		local control: number
+		control, pos = string.unpack("<B", data, pos)
+		for bitIndex = 0, 7 do
+			if pos > n then
+				break
+			end
+			if bit32.band(bit32.rshift(control, bitIndex), 1) == 1 then
+				local byte
+				byte, pos = string.unpack("<B", data, pos)
+				outLen += 1
+				outChars[outLen] = string.char(byte)
+			else
+				local offset, len
+				offset, len, pos = string.unpack("<HB", data, pos)
+				local start = outLen - offset
+				for k = 1, len do
+					outLen += 1
+					outChars[outLen] = outChars[start + k]
+				end
+			end
+		end
+	end
+
+	return table.concat(outChars, "", 1, outLen)
+end
+
+local function encodeDefinitions(list: { Definition }): buffer
+	local pool = buildPool(list)
+	local out = packPool(pool) .. string.pack("<H", #list)
+	for _, definition in list do
+		out ..= packDefinition(definition, pool)
+	end
+	return buffer.fromstring(lzCompress(out))
+end
+
+local function decodeDefinitions(payload: buffer): { Definition }
+	local data = lzDecompress(buffer.tostring(payload))
+	local pool, pos = unpackPool(data, 1)
+	local count
+	count, pos = string.unpack("<H", data, pos)
+	local out = {}
+	for i = 1, count do
+		out[i], pos = unpackDefinition(data, pos, pool)
+	end
+	return out
+end
+
 local function currentDefinitions(): { Definition }
 	local out: { Definition } = {}
 	for _, kommand in imports.Kommand.list() do
@@ -205,10 +601,10 @@ function Dispatch.host(serverImplementations: { [string]: Run }?)
 	local definitionsBridge = ensureDefinitionsRemote()
 	if definitionsBridge then
 		definitionsBridge.OnServerEvent:Connect(function(player)
-			definitionsBridge:FireClient(player, currentDefinitions())
+			definitionsBridge:FireClient(player, encodeDefinitions(currentDefinitions()))
 		end)
 		imports.Kommand.watch(function()
-			definitionsBridge:FireAllClients(currentDefinitions())
+			definitionsBridge:FireAllClients(encodeDefinitions(currentDefinitions()))
 		end)
 	end
 
@@ -287,11 +683,12 @@ if imports.RunService:IsClient() then
 			return
 		end
 
-		bridge.OnClientEvent:Connect(function(list: any)
-			if type(list) ~= "table" then
+		bridge.OnClientEvent:Connect(function(payload: any)
+			if typeof(payload) ~= "buffer" then
 				return
 			end
-			for _, definition in list :: { Definition } do
+			local list = decodeDefinitions(payload)
+			for _, definition in list do
 				imports.Kommand.define(definition)
 			end
 		end)
