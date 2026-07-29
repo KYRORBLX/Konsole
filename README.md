@@ -130,20 +130,15 @@ Konsole ships with a few small commands:
 
 The ban command is server-local. It blocks players for the lifetime of that server, not permanently across all servers. If you want persistent bans, store ban state in a DataStore and implement your own `banServer` / `unbanServer`.
 
-If you don't want the built-ins at all, call `Konsole.excludeBuiltins()` before anything else touches Konsole (before `host`/`create`/`define`/`run`):
+If you don't want some (or all) of the built-ins, call one of these before anything else touches Konsole (before `host`/`create`/`define`/`run`):
 
 ```luau
-Konsole.excludeBuiltins() -- drops all built-ins
-Konsole.excludeBuiltins({ "kick", "ban", "unban", "kill" }) -- drops just these
+Konsole.excludeBuiltins("kick", "ban", "unban", "kill") -- drops just these
+Konsole.excludeAllBuiltins() -- drops all built-ins
+Konsole.includeBuiltins("ban", "tp") -- keeps only ban and tp, drops the rest
 ```
 
-Or flip it around with `Konsole.includeBuiltins(...)` to keep only the names you list, dropping every other built-in:
-
-```luau
-Konsole.includeBuiltins("ban", "tp") -- keeps only ban and tp
-```
-
-`cmds` and `clear` are never dropped either way, even with no args to `excludeBuiltins()` — they're the only way to see or recover from a stripped command list once everything else is gone. `excludeBuiltins` and `includeBuiltins` can't be used together.
+`cmds` and `clear` are never dropped by any of these — they're the only way to see or recover from a stripped command list once everything else is gone. `excludeBuiltins`/`excludeAllBuiltins` and `includeBuiltins` can't be used together.
 
 ## Commands
 
@@ -573,7 +568,8 @@ Konsole.host(serverImplementations?)
 Konsole.define(definition)
 Konsole.implement(name, callback)
 Konsole.run(text)
-Konsole.excludeBuiltins(names?)
+Konsole.excludeBuiltins(...names)
+Konsole.excludeAllBuiltins()
 Konsole.includeBuiltins(...names)
 Konsole.registerType(name, converter)
 

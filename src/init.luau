@@ -65,25 +65,32 @@ local function registerBuiltins(): ()
 end
 
 --[[
-	@description opt out of Konsole's built-in commands (bring/clear/close/ranks/
+	@description opt out of specific built-in commands (bring/clear/close/ranks/
 	unban/cmds/kick/kill/ban/tp) so they don't register or replicate at all.
-	Call with no args (or nil) to drop all of them, or a list of names to drop
-	just those. Must be called before Konsole.create/host/run/define first runs.
+	Must be called before Konsole.create/host/run/define first runs.
+	@see Konsole.excludeAllBuiltins
 	@time July 28, 2026
 ]]
-function Konsole.excludeBuiltins(names: { BuiltinName }?): ()
+function Konsole.excludeBuiltins(...: BuiltinName): ()
 	assert(not registered, "Konsole.excludeBuiltins must be called before Konsole is used")
 	assert(builtinsIncluded == nil, "Konsole.excludeBuiltins cannot be used together with Konsole.includeBuiltins")
-	if names == nil then
-		builtinsExcluded = { all = true }
-		return
-	end
 
 	local set = {}
-	for _, name in names do
+	for _, name in { ... } do
 		set[name] = true
 	end
 	builtinsExcluded = set
+end
+
+--[[
+	@description drops every built-in command. Must be called before Konsole
+	is used.
+	@time July 28, 2026
+]]
+function Konsole.excludeAllBuiltins(): ()
+	assert(not registered, "Konsole.excludeAllBuiltins must be called before Konsole is used")
+	assert(builtinsIncluded == nil, "Konsole.excludeAllBuiltins cannot be used together with Konsole.includeBuiltins")
+	builtinsExcluded = { all = true }
 end
 
 --[[

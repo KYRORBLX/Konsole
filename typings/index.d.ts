@@ -435,7 +435,8 @@ declare namespace Konsole {
 		define: <const T extends readonly Argument[] = readonly Argument[], S extends string | undefined = undefined>(
 			definition: Definition<T, S>,
 		) => Command<RunArgs<T>, S>;
-		excludeBuiltins: (names?: Array<BuiltinName>) => void;
+		excludeAllBuiltins: () => void;
+		excludeBuiltins: (...names: Array<BuiltinName>) => void;
 		getRank: (entity: RankEntity) => number;
 		host: (serverImplementations?: Record<string, Run<Array<any>>>) => RemoteFunction | undefined;
 		implement: Implement;
