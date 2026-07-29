@@ -4,6 +4,8 @@ declare namespace Konsole {
 
 	type BooleanArgument = `${boolean}` | "yes" | "no" | "on" | "off" | "1" | "0";
 
+	export type BuiltinName = "bring" | "clear" | "close" | "ranks" | "unban" | "cmds" | "kick" | "kill" | "ban" | "tp";
+
 	export type Argument =
 		| {
 				name?: string;
@@ -426,7 +428,7 @@ declare namespace Konsole {
 		define: <const T extends readonly Argument[] = readonly Argument[], S extends string | undefined = undefined>(
 			definition: Definition<T, S>,
 		) => Command<RunArgs<T>, S>;
-		excludeBuiltins: (names?: Array<string>) => void;
+		excludeBuiltins: (names?: Array<BuiltinName>) => void;
 		getRank: (entity: RankEntity) => number;
 		host: (serverImplementations?: Record<string, Run<Array<any>>>) => RemoteFunction | undefined;
 		implement: Implement;

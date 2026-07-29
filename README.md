@@ -542,6 +542,7 @@ Konsole.host(serverImplementations?)
 Konsole.define(definition)
 Konsole.implement(name, callback)
 Konsole.run(text)
+Konsole.excludeBuiltins(names?)
 
 Konsole.setRank(userId, rank)
 Konsole.getRank(entity)
