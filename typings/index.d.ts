@@ -10,33 +10,35 @@ declare namespace Konsole {
 				type?: "string";
 				default?: string;
 				required?: boolean;
-				suggestions?: string[] | string;
+				suggestions?: readonly string[] | string;
 		}
 		| {
 				name?: string;
 				type: "number";
 				default?: number;
 				required?: boolean;
-				suggestions?: `${number}`[] | `${number}`;
+				suggestions?: readonly `${number}`[] | `${number}`;
 		}
 		| {
 				name?: string;
 				type: "boolean";
 				default?: boolean;
 				required?: boolean;
-				suggestions?: BooleanArgument[] | BooleanArgument;
+				suggestions?: readonly BooleanArgument[] | BooleanArgument;
 		}
 		| {
 				name?: string;
 				type: "player";
 				default?: never;
 				required?: boolean;
+				suggestions?: never;
 		}
 		| {
 				name?: string;
 				type: "players";
 				default?: never;
 				required?: boolean;
+				suggestions?: never;
 		};
 
 	export interface Outcome {
