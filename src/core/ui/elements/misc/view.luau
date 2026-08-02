@@ -5,13 +5,33 @@
 ]]
 
 --// imports
-local imports = {
+local Imports = {
     Placement = require("./placement"),
     Text = require("./text"),
 }
 
+local Types = require("../../../../types/uiTypes")
+
+type Properties = Types.ViewProperties
+type Make = Types.ViewMake
+
 --// locals
-local View = {}
+local function make(className: string, props: Properties?, parent: Instance?): Instance
+    local instance = Instance.new(className)
+
+	if props then
+		for key, value in props do
+			instance[key] = value
+		end
+    end
+
+    instance.Parent = parent
+    return instance
+end
+
+local View = {
+	make = (make :: any) :: Make,
+}
 
 local function createShadow(parent, name, config, zIndex, visible)
     return View.make("ImageLabel", {
@@ -293,19 +313,11 @@ function View.readAsset(value)
     return ""
 end
 
-function View.make(className, props, parent)
-    local instance = Instance.new(className)
-    for key, value in props or {} do
-        instance[key] = value
-    end
-
-    instance.Parent = parent
-    return instance
-end
-
 function View.corner(parent, radius)
+	local cornerRadius = if typeof(radius) == "UDim" then radius else UDim.new(0, radius :: number)
+
     return View.make("UICorner", {
-        CornerRadius = typeof(radius) == "UDim" and radius or UDim.new(0, radius),
+        CornerRadius = cornerRadius,
     }, parent)
 end
 
@@ -319,7 +331,11 @@ function View.padding(parent, left, top, right, bottom)
 end
 
 function View.setShadowBounds(shadow, frame)
-    if typeof(shadow) ~= "Instance" or typeof(frame) ~= "Instance" then
+	if typeof(shadow) ~= "Instance" or not shadow:IsA("GuiObject") then
+		return
+	end
+
+	if typeof(frame) ~= "Instance" or not frame:IsA("GuiObject") then
         return
     end
 
@@ -337,12 +353,12 @@ function View.richSuggestion(text, matchText, config)
     local fullText = tostring(text or "")
     
     if type(matchText) ~= "string" or matchText == "" then
-        return imports.Text.richEscape(fullText)
+        return Imports.Text.richEscape(fullText)
     end
 
     local startIndex, endIndex = string.find(string.lower(fullText), string.lower(matchText), 1, true)
     if not startIndex then
-        return imports.Text.richEscape(fullText)
+        return Imports.Text.richEscape(fullText)
     end
 
     local colors = config.color
@@ -351,13 +367,13 @@ function View.richSuggestion(text, matchText, config)
         '<font color="%s">%s</font><font color="%s"><b>%s</b></font><font color="%s">%s</font>',
         colors.suggSub,
         
-        imports.Text.richEscape(string.sub(fullText, 1, startIndex - 1)),
+        Imports.Text.richEscape(string.sub(fullText, 1, startIndex - 1)),
         colors.suggMatch,
         
-        imports.Text.richEscape(string.sub(fullText, startIndex, endIndex)),
+        Imports.Text.richEscape(string.sub(fullText, startIndex, endIndex)),
         colors.suggSub,
         
-        imports.Text.richEscape(string.sub(fullText, endIndex + 1))
+        Imports.Text.richEscape(string.sub(fullText, endIndex + 1))
     )
 end
 
@@ -383,7 +399,7 @@ function View.createTree(session, gui)
     local pillHeight = panel.height
     local startWidth = pillHeight
     
-    local startPosition, startAnchor = imports.Placement.resolve(panel.position, pillHeight / 2)
+    local startPosition, startAnchor = Imports.Placement.resolve(panel.position, pillHeight / 2)
 
     local root = View.make("Frame", {
         BackgroundTransparency = 1,
@@ -424,7 +440,7 @@ function View.createTree(session, gui)
     refs.stackShadow = createShadow(root, "StackShadow", config, 26, false)
     refs.pillShadow = createShadow(root, "PillShadow", config, 27, true)
 
-    local suggestionPosition, suggestionAnchor = imports.Placement.suggestion(root, panel.suggestionGap)
+    local suggestionPosition, suggestionAnchor = Imports.Placement.suggestion(root, panel.suggestionGap)
 
     local suggList = View.make("ScrollingFrame", {
         ScrollingEnabled = true,
@@ -586,7 +602,7 @@ function View.createTree(session, gui)
 end
 
 function View.pointIn(frame, point)
-    if typeof(frame) ~= "Instance" or not frame.Visible then
+    if typeof(frame) ~= "Instance" or not frame:IsA("GuiObject") or not frame.Visible then
         return false
     end
 

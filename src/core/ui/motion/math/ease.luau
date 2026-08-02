@@ -6,12 +6,10 @@
 	@time June 13, 2026
 ]]
 
+local Types = require("../../../../types/uiTypes")
+
 --// types
-export type EaseGroup = {
-	direction: Enum.EasingDirection,
-	style: Enum.EasingStyle,
-	soft: Enum.EasingStyle,
-}
+export type EaseGroup = Types.EaseGroup
 
 --// public api
 local Ease: EaseGroup = {

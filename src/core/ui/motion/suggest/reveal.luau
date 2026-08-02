@@ -5,12 +5,12 @@
 ]]
 
 --// imports
-local imports = {
-	Math = require("../math"),
+local Imports = {
 	Placement = require("../../elements/misc/placement"),
+	Math = require("../math"),
 }
 
-local Tween = imports.Math.tween
+local Tween = Imports.Math.tween
 
 --// locals
 local function savedPosition(session, key, root)
@@ -36,7 +36,7 @@ function Reveal.prepare(session)
     session.secondRootPosition = secondPosition
     session.rootPosition = position
     
-	refs.root.Position = imports.Placement.slide(position, refs.root, motion.openSlideOffset or 44)
+	refs.root.Position = Imports.Placement.slide(position, refs.root, motion.openSlideOffset or 44)
 	refs.root.Size = UDim2.fromOffset(0, panel.height)
     refs.pill.Size = UDim2.fromOffset(0, panel.height)
     
@@ -48,7 +48,7 @@ function Reveal.prepare(session)
     refs.pillPad.PaddingLeft = UDim.new(0, layout.paddingX + slide)
 	refs.InputBox.Visible = false
 
-	refs.secondRoot.Position = imports.Placement.slide(secondPosition, refs.secondRoot, motion.openSlideOffset or 44)
+	refs.secondRoot.Position = Imports.Placement.slide(secondPosition, refs.secondRoot, motion.openSlideOffset or 44)
 	refs.secondRoot.Size = UDim2.fromOffset(0, panel.height)
     refs.secondPill.Size = UDim2.fromOffset(0, panel.height)
     
@@ -183,7 +183,7 @@ function Reveal.close(session)
         end
         
 		for _, shadow in shadows do
-			if typeof(shadow) == "Instance" then
+			if typeof(shadow) == "Instance" and shadow:IsA("ImageLabel") then
 				shadow.Visible = false
 			end
 		end
@@ -230,11 +230,11 @@ function Reveal.close(session)
     end
     
 	task.delay(addChatFadeTime, function()
-		if typeof(refs.addChatIcon) == "Instance" then
+		if typeof(refs.addChatIcon) == "Instance" and refs.addChatIcon:IsA("ImageLabel") then
 			refs.addChatIcon.ImageTransparency = 1
         end
         
-		if typeof(refs.addChatText) == "Instance" then
+		if typeof(refs.addChatText) == "Instance" and refs.addChatText:IsA("TextLabel") then
 			refs.addChatText.TextTransparency = 1
 		end
 	end)
@@ -249,7 +249,7 @@ function Reveal.close(session)
 		end
         
 		Tween.to(refs.root, {
-			Position = imports.Placement.slide(position, refs.root, motion.openSlideOffset or 44),
+			Position = Imports.Placement.slide(position, refs.root, motion.openSlideOffset or 44),
 			Size = UDim2.fromOffset(0, panel.height),
         }, slideTime)
         
@@ -266,7 +266,7 @@ function Reveal.close(session)
 
 		if showSecondChat and refs.secondRoot then
 			Tween.to(refs.secondRoot, {
-				Position = imports.Placement.slide(secondPosition, refs.secondRoot, motion.openSlideOffset or 44),
+				Position = Imports.Placement.slide(secondPosition, refs.secondRoot, motion.openSlideOffset or 44),
 				Size = UDim2.fromOffset(0, panel.height),
             }, slideTime)
             

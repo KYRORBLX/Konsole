@@ -7,12 +7,22 @@
 ]]
 
 --// imports
-local math = {
-	dragging = require("@self/dragging"),
-	scroll = require("@self/scroll"),
-	slide = require("@self/slide"),
-	tween = require("@self/tween"),
-	ease = require("@self/ease"),
+local Imports = {
+	Dragging = require("@self/dragging"),
+	Scroll = require("@self/scroll"),
+	Slide = require("@self/slide"),
+
+	Tween = require("@self/tween"),
+	Ease = require("@self/ease"),
 }
 
-return math
+local Math = {
+	dragging = Imports.Dragging,
+	scroll = Imports.Scroll,
+	slide = Imports.Slide,
+
+	tween = Imports.Tween,
+	ease = Imports.Ease,
+}
+
+return Math

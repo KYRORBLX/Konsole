@@ -5,7 +5,7 @@
 ]]
 
 --// imports
-local imports = {
+local Imports = {
 	Suggest = require("../../motion/suggest"),
     Providers = require("./providers"),
     
@@ -46,7 +46,7 @@ local function rankSuggestion(query, suggestion)
 	elseif contains(lower, query) then
 		score = 420
 	else
-		local fuzzy = imports.Text.fuzzyScore(query, lower)
+		local fuzzy = Imports.Text.fuzzyScore(query, lower)
 		if fuzzy <= 0 then
 			return 0
 		end
@@ -139,7 +139,7 @@ function Suggestions.attach(Session)
 	end
 
 	function Session:suggestionsFor(text)
-        text = string.lower(imports.Text.cleanStart(text))
+        text = string.lower(Imports.Text.cleanStart(text))
         
 		if text == "" then
 			return {}
@@ -152,7 +152,7 @@ function Suggestions.attach(Session)
         local chip = if type(self.focusedChip) == "function" then self:focusedChip() else self.activeChip
         
 		if chip and type(chip.arg) == "table" then
-			local source = imports.Providers.resolve(chip.arg)
+			local source = Imports.Providers.resolve(chip.arg)
 
 			if text == "" then
 				return source, text
@@ -167,7 +167,7 @@ function Suggestions.attach(Session)
 			return matches, text
 		end
 
-		local query = string.lower(imports.Text.cleanStart(text))
+		local query = string.lower(Imports.Text.cleanStart(text))
 
 		if string.find(query, "%s") then
 			return {}, query
@@ -179,15 +179,18 @@ function Suggestions.attach(Session)
 	function Session:hideSuggestions()
         local suggList = self.refs.suggList
         
-		if typeof(suggList) ~= "Instance" then
+		if typeof(suggList) ~= "Instance" or not suggList:IsA("ScrollingFrame") then
 			return
 		end
 
-		imports.View.clearSuggestionConnections(self)
+		Imports.View.clearSuggestionConnections(self)
 		if not suggList.Visible and #self.currentSuggestions == 0 then
             self.suggestionsHiding = false
             
-			if typeof(self.refs.suggShadow) == "Instance" then
+			if
+				typeof(self.refs.suggShadow) == "Instance"
+				and self.refs.suggShadow:IsA("ImageLabel")
+			then
                 self.refs.suggShadow.ImageTransparency = 1
                 self.refs.suggShadow.Visible = false
 			end
@@ -201,12 +204,12 @@ function Suggestions.attach(Session)
         
         self.suggestToken += 1
 		
-		imports.Suggest.hide(self)
+		Imports.Suggest.hide(self)
 	end
 
 	function Session:syncSelection()
 		local suggList = self.refs.suggList
-		if typeof(suggList) ~= "Instance" then
+		if typeof(suggList) ~= "Instance" or not suggList:IsA("ScrollingFrame") then
 			return
 		end
 
@@ -221,12 +224,12 @@ function Suggestions.attach(Session)
             
             local label = child:FindFirstChild("Label")
             
-			if typeof(label) == "Instance" then
+			if typeof(label) == "Instance" and label:IsA("TextLabel") then
 				label.Font = selected and config.font.title or config.font.body
                 local suggestion = child:GetAttribute("SuggestionText")
                 
 				if type(suggestion) == "string" then
-					local richText = imports.View.richSuggestion(suggestion, self.suggestionQuery, config)
+					local richText = Imports.View.richSuggestion(suggestion, self.suggestionQuery, config)
 					label.Text = selected and ("<b>" .. richText .. "</b>") or richText
 				end
             end
@@ -278,7 +281,7 @@ function Suggestions.attach(Session)
         local config = self.config
         local panel = config.panel
         
-		if typeof(suggList) ~= "Instance" then
+		if typeof(suggList) ~= "Instance" or not suggList:IsA("ScrollingFrame") then
 			return
 		end
 
@@ -301,7 +304,7 @@ function Suggestions.attach(Session)
         self.selectedSuggestion = 1
         self.suggestToken += 1
         
-        imports.View.clearSuggestionConnections(self)
+        Imports.View.clearSuggestionConnections(self)
         self:placeSuggestions()
 
 		suggList.CanvasPosition = Vector2.zero
@@ -317,7 +320,7 @@ function Suggestions.attach(Session)
 
 		for index = 1, count do
 			local suggestion = list[index]
-			local button = imports.View.make("TextButton", {
+			local button = Imports.View.make("TextButton", {
                 LayoutOrder = index,
                 
 				Size = UDim2.new(1, 0, 0, panel.suggestionHeight),
@@ -333,10 +336,10 @@ function Suggestions.attach(Session)
                 Text = "",
             }, suggList)
             
-			imports.View.corner(button, panel.suggestionRadius or 10)
+			Imports.View.corner(button, panel.suggestionRadius or 10)
 			button:SetAttribute("SuggestionText", suggestion)
 
-			local label = imports.View.make("TextLabel", {
+			local label = Imports.View.make("TextLabel", {
                 Name = "Label",
                 
                 Position = UDim2.new(0, config.layout.paddingX, 0, 1 + slide),
@@ -353,7 +356,7 @@ function Suggestions.attach(Session)
                 TextTransparency = showing and config.transparency.suggText or 1,
                 ZIndex = 33,
 				
-                Text = imports.View.richSuggestion(suggestion, query, config),
+                Text = Imports.View.richSuggestion(suggestion, query, config),
                 RichText = true,
 			}, button)
 
@@ -374,12 +377,12 @@ function Suggestions.attach(Session)
 			)
 
 			if not showing then
-				imports.Suggest.item(self, label)
+				Imports.Suggest.item(self, label)
 			end
 		end
 
 		self:syncSelection()
-        imports.Suggest.reveal(self, visibleCount)
+        Imports.Suggest.reveal(self, visibleCount)
         
 		task.defer(function()
 			self:updateShadows()
@@ -393,7 +396,7 @@ function Suggestions.attach(Session)
 		local suggestion: string = rawSuggestion
 
 		local chip = if type(self.focusedChip) == "function" then self:focusedChip() else self.activeChip
-        if chip and typeof(chip.box) == "Instance" then
+		if chip and typeof(chip.box) == "Instance" and chip.box:IsA("TextBox") then
             
             chip.box.CursorPosition = #suggestion + 1
             chip.box.Text = suggestion
@@ -413,7 +416,7 @@ function Suggestions.attach(Session)
 
 		local channel = self.activeChannel
 		local input = self:activeInput()
-		if typeof(input) ~= "Instance" then
+		if typeof(input) ~= "Instance" or not input:IsA("TextBox") then
 			return false
 		end
 
@@ -433,7 +436,7 @@ function Suggestions.attach(Session)
 		input.CursorPosition = #newText + 1
 
 		task.defer(function()
-			if typeof(input) == "Instance" and input:IsFocused() then
+			if typeof(input) == "Instance" and input:IsA("TextBox") and input:IsFocused() then
                 input.CursorPosition = #newText + 1
                 input.Text = newText
 			end
@@ -444,7 +447,7 @@ function Suggestions.attach(Session)
 
 	function Session:acceptSuggestion()
 		local input = self:activeInput()
-		if typeof(input) ~= "Instance" then
+		if typeof(input) ~= "Instance" or not input:IsA("TextBox") then
 			return false
         end
         

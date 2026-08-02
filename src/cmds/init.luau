@@ -1,34 +1,26 @@
+--!strict
+
 --[[
 	@name cmds
 	@author driftingAurora, dullflowerr, alias; kioukaii
 	@time June 12, 2026
 ]]
 
---!strict
+local Imports = {
+	Unban = require("@self/100/unban"),
+	Bring = require("@self/50/bring"),
+	Ranks = require("@self/10/ranks"),
 
-local imports = {
-	--// B/R
-	bring = require("@self/50/bring"),
-	ranks = require("@self/10/ranks"),
+	Clear = require("@self/10/clear"),
+	Close = require("@self/10/close"),
+	Server = require("@self/server"),
 
-	--// S
-	server = require("@self/server"),
+	Kick = require("@self/100/kick"),
+	Kill = require("@self/100/kill"),
+	Cmds = require("@self/10/cmds"),
 
-	--// C
-	clear = require("@self/10/clear"),
-	close = require("@self/10/close"),
-	cmds = require("@self/10/cmds"),
-
-	--// K
-	kick = require("@self/100/kick"),
-	kill = require("@self/100/kill"),
-
-	--// U/B
-    unban = require("@self/100/unban"),
-    ban = require("@self/100/ban"),
-
-	--// T
-	tp = require("@self/50/tp"),
+	Ban = require("@self/100/ban"),
+	TP = require("@self/50/tp"),
 }
 
 local Types = require("./types/sharedTypes")
@@ -38,24 +30,28 @@ export type Run = Types.Run
 
 local Cmds = {
 	definitions = table.freeze({
-		imports.bring,
-		imports.clear,
-		imports.close,
-		imports.ranks,
-		imports.unban,
-		imports.cmds,
-		imports.kick,
-		imports.kill,
-		imports.ban,
-		imports.tp,
+		(Imports.Clear :: any) :: Definition,
+		(Imports.Close :: any) :: Definition,
+
+		Imports.Unban,
+		Imports.Bring,
+		Imports.Ranks,
+
+		Imports.Kill,
+		Imports.Cmds,
+		Imports.Kick,
+
+		Imports.Ban,
+
+		Imports.TP,
 	}) :: { Definition },
-	server = imports.server :: { [string]: Run },
+	server = Imports.Server :: { [string]: Run },
 }
 
 function Cmds.register(kommand: any)
-    for index, definition in Cmds.definitions do
-        assert(type(definition.name) == "string", `invalid built-in command at index {index}`)
-        
+	for index, definition in Cmds.definitions do
+		assert(type(definition.name) == "string", `invalid built-in command at index {index}`)
+
 		kommand.define(definition)
 	end
 end

@@ -1,10 +1,10 @@
+--!strict
+
 --[[
 	@name killServer
 	@author driftingAurora, dullflowerr, alias; kioukaii
 	@time June 12, 2026
 ]]
-
---!strict
 
 local Types = require("../../types/sharedTypes")
 

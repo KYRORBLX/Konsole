@@ -7,7 +7,7 @@
 ]]
 
 --// imports
-local imports = {
+local Imports = {
 	RunService = game:GetService("RunService"),
 }
 
@@ -17,11 +17,7 @@ local Types = require("../../../types/sharedTypes")
 export type Resolver = Types.Resolver
 export type Rank = Types.Rank
 
-type DefaultRank = {
-	aliases: { string }?,
-	name: string,
-	id: number,
-}
+type DefaultRank = Types.DefaultRank
 
 --// locals
 local assignments: { [number]: number } = {}
@@ -151,10 +147,9 @@ function Ranks.get(entity: any): number
 		return assigned
 	end
 
-	local isCreator = game.CreatorType == Enum.CreatorType.User
-		and userId == game.CreatorId
+	local isCreator = game.CreatorType == Enum.CreatorType.User and userId == game.CreatorId
 
-	if isCreator or imports.RunService:IsStudio() then
+	if isCreator or Imports.RunService:IsStudio() then
 		return math.huge
 	end
 

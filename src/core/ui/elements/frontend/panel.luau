@@ -5,19 +5,20 @@
 ]]
 
 --// imports
-local imports = {
+local Imports = {
     TextService = game:GetService("TextService"),
     Workspace = game:GetService("Workspace"),
 
     Shape = require("../../motion/math/shape"),
-    History = require("../backend/history"),
     Placement = require("../misc/placement"),
+
+    History = require("../backend/history"),
     View = require("../misc/view"),
 }
 
 --// locals
 local function measureText(text, config)
-    local size = imports.TextService:GetTextSize(
+    local size = Imports.TextService:GetTextSize(
         text,
 
         config.layout.textSize,
@@ -33,13 +34,61 @@ local function textGap(config)
     return math.floor((measureText("a a", config).X - measureText("aa", config).X) * 0.5)
 end
 
+local function guiObject(value): GuiObject?
+	if typeof(value) == "Instance" and value:IsA("GuiObject") then
+		return value
+	end
+
+	return nil
+end
+
+local function frame(value): Frame?
+	if typeof(value) == "Instance" and value:IsA("Frame") then
+		return value
+	end
+
+	return nil
+end
+
+local function scrollingFrame(value): ScrollingFrame?
+	if typeof(value) == "Instance" and value:IsA("ScrollingFrame") then
+		return value
+	end
+
+	return nil
+end
+
+local function textLabel(value): TextLabel?
+	if typeof(value) == "Instance" and value:IsA("TextLabel") then
+		return value
+	end
+
+	return nil
+end
+
+local function textButton(value): TextButton?
+	if typeof(value) == "Instance" and value:IsA("TextButton") then
+		return value
+	end
+
+	return nil
+end
+
+local function imageLabel(value): ImageLabel?
+	if typeof(value) == "Instance" and value:IsA("ImageLabel") then
+		return value
+	end
+
+	return nil
+end
+
 local function visibleWindow(session, channel)
     local _, row = session:channelState(channel)
     local raw = session:rawHistoryHeight(channel)
 
     local pinned = session.autoScroll[channel] ~= false
 
-    if typeof(row) == "Instance" and row.Visible and row.AbsoluteSize.Y > 1 then
+    if row and row.Visible and row.AbsoluteSize.Y > 1 then
 
         local height = row.AbsoluteSize.Y
         local top = pinned and math.max(0, raw - height) or math.max(0, row.CanvasPosition.Y)
@@ -62,10 +111,10 @@ local Panel = {}
 function Panel.attach(Session)
     function Session:channelState(channel)
         if channel == 2 then
-            return self.secondHistory, self.refs.secondCommandRow, self.refs.secondCommandText
+            return self.secondHistory, scrollingFrame(self.refs.secondCommandRow), textLabel(self.refs.secondCommandText)
         end
 
-        return self.history, self.refs.commandRow, self.refs.commandText
+        return self.history, scrollingFrame(self.refs.commandRow), textLabel(self.refs.commandText)
     end
 
     function Session:markHistoryDirty(channel)
@@ -74,8 +123,10 @@ function Panel.attach(Session)
     end
 
     function Session:saveScroll()
-        for channel, row in { self.refs.commandRow, self.refs.secondCommandRow } do
-            if typeof(row) == "Instance" then
+        for channel = 1, 2 do
+			local _, row = self:channelState(channel)
+
+			if row then
                 self.savedScroll[channel] = row.CanvasPosition.Y
             end
         end
@@ -85,7 +136,7 @@ function Panel.attach(Session)
         if self.lineCache[channel] == nil or self.historyDirty[channel] then
             local items = channel == 2 and self.secondHistory or self.history
 
-            self.lineCache[channel] = imports.History.displayLines(items, self.config)
+            self.lineCache[channel] = Imports.History.displayLines(items, self.config)
             self.historyDirty[channel] = false
         end
 
@@ -118,16 +169,16 @@ function Panel.attach(Session)
         local panel = self.config.panel
         
         local baseLimit = panel.historyMaxHeight or 420
-        local camera = imports.Workspace.CurrentCamera
+        local camera = Imports.Workspace.CurrentCamera
 
-        if typeof(camera) ~= "Instance" then
+        if not camera then
             return baseLimit
         end
 
-        local root = channel == 2 and self.refs.secondRoot or self.refs.root
+        local root = guiObject(channel == 2 and self.refs.secondRoot or self.refs.root)
         local position = channel == 2 and self.secondRootPosition or self.rootPosition
 
-        if typeof(position) ~= "UDim2" and typeof(root) == "Instance" then
+        if typeof(position) ~= "UDim2" and root then
             position = root.Position
         end
 
@@ -140,7 +191,7 @@ function Panel.attach(Session)
         local stackExtra = channel == 1 and self:stackExtra() or 0
         local available
 
-        if typeof(root) == "Instance" and imports.Placement.isTop(root) then
+        if root and Imports.Placement.isTop(root) then
             available = camera.ViewportSize.Y - point - edgeInset - stackExtra
         else
             available = point - edgeInset - stackExtra
@@ -185,7 +236,7 @@ function Panel.attach(Session)
 
     function Session:renderHistory(channel)
         local _, row, label = self:channelState(channel)
-        if typeof(row) ~= "Instance" or typeof(label) ~= "Instance" then
+        if not row or not label then
             return
         end
 
@@ -199,10 +250,10 @@ function Panel.attach(Session)
         local lines = self:historyLines(channel)
 
         local contentName = channel == 2 and "secondHistoryContent" or "historyContent"
-        local content = self.refs[contentName]
+        local content = frame(self.refs[contentName])
 
-        if typeof(content) ~= "Instance" then
-            content = imports.View.make("Frame", {
+        if not content then
+            content = Imports.View.make("Frame", {
 
                 BackgroundTransparency = 1,
                 BorderSizePixel = 0,
@@ -213,7 +264,7 @@ function Panel.attach(Session)
                 Position = UDim2.fromOffset(2, 0),
                 Size = UDim2.new(1, -14, 0, rawHeight),
 
-            }, row)
+            }, row) :: Frame
 
             self.refs[contentName] = content
         end
@@ -245,7 +296,7 @@ function Panel.attach(Session)
         for first = 1, #lines, chunkSize do
             local last = math.min(#lines, first + chunkSize - 1)
 
-            imports.View.make("TextLabel", {
+            Imports.View.make("TextLabel", {
 
                 BackgroundTransparency = 1,
 
@@ -262,9 +313,10 @@ function Panel.attach(Session)
                 Name = string.format("Chunk_%04d", math.ceil(first / chunkSize)),
                 Font = self.config.font.mono,
 
-                TextYAlignment = Enum.TextYAlignment.Top,
-                TextXAlignment = Enum.TextXAlignment.Left,
-                Text = imports.History.chunkText(lines, first, last),
+				TextYAlignment = Enum.TextYAlignment.Top,
+				TextXAlignment = Enum.TextXAlignment.Left,
+
+				Text = Imports.History.chunkText(lines, first, last),
                 Size = UDim2.new(1, 0, 0, (last - first + 1) * lineHeight),
 
             }, content)
@@ -273,7 +325,7 @@ function Panel.attach(Session)
 
     function Session:syncScroll(channel)
         local _, row, label = self:channelState(channel)
-        if typeof(row) ~= "Instance" or typeof(label) ~= "Instance" then
+        if not row or not label then
             return
         end
 
@@ -445,9 +497,9 @@ function Panel.attach(Session)
         end
 
         local viewportMax = panel.maxWidth or panel.wideWidth or base
-        local camera = imports.Workspace.CurrentCamera
+        local camera = Imports.Workspace.CurrentCamera
 
-        if typeof(camera) == "Instance" then
+        if camera then
             viewportMax = math.min(viewportMax, math.max(panel.width, camera.ViewportSize.X - 24))
         end
 
@@ -459,48 +511,57 @@ function Panel.attach(Session)
         local panel = self.config.panel
         local refs = self.refs
 
-        if typeof(refs.root) == "Instance" then
-            refs.root.Size = UDim2.fromOffset(width, refs.root.Size.Y.Offset)
+		local root = frame(refs.root)
+		if root then
+            root.Size = UDim2.fromOffset(width, root.Size.Y.Offset)
         end
 
-        if not self.secondDetached and typeof(refs.secondRoot) == "Instance" then
-            refs.secondRoot.Size = UDim2.fromOffset(width, refs.secondRoot.Size.Y.Offset)
+		local secondRoot = frame(refs.secondRoot)
+		if not self.secondDetached and secondRoot then
+            secondRoot.Size = UDim2.fromOffset(width, secondRoot.Size.Y.Offset)
         end
 
-        if typeof(refs.pill) == "Instance" then
-            refs.pill.Size = UDim2.fromOffset(width, refs.pill.Size.Y.Offset)
+		local pill = frame(refs.pill)
+		if pill then
+            pill.Size = UDim2.fromOffset(width, pill.Size.Y.Offset)
         end
 
-        if typeof(refs.pillBtn) == "Instance" then
-            refs.pillBtn.Size = UDim2.fromOffset(width, panel.height)
+		local pillBtn = textButton(refs.pillBtn)
+		if pillBtn then
+            pillBtn.Size = UDim2.fromOffset(width, panel.height)
         end
 
-        if typeof(refs.addChatPill) == "Instance" and refs.addChatPill.Visible then
+		local addChatPill = textButton(refs.addChatPill)
+		if addChatPill and addChatPill.Visible then
             local addWidth = self.hasSecondChat and width or self:addChatWidth(width)
 
-            refs.addChatPill.Size = UDim2.fromOffset(addWidth, refs.addChatPill.Size.Y.Offset)
+			addChatPill.Size = UDim2.fromOffset(addWidth, addChatPill.Size.Y.Offset)
         end
 
-        if not self.secondDetached and typeof(refs.secondPill) == "Instance" and refs.secondPill.Visible then
-            refs.secondPill.Size = UDim2.fromOffset(width, refs.secondPill.Size.Y.Offset)
+		local secondPill = frame(refs.secondPill)
+		if not self.secondDetached and secondPill and secondPill.Visible then
+            secondPill.Size = UDim2.fromOffset(width, secondPill.Size.Y.Offset)
         end
 
-        if typeof(refs.suggList) == "Instance" and refs.suggList.Visible and not self.suggestionsHiding then
-            local suggestionWidth = refs.suggList.Parent == refs.secondRoot and self:activeWidth(2) or width
+		local suggList = scrollingFrame(refs.suggList)
+		if suggList and suggList.Visible and not self.suggestionsHiding then
+            local suggestionWidth = suggList.Parent == refs.secondRoot and self:activeWidth(2) or width
 
-            refs.suggList.Size = UDim2.fromOffset(suggestionWidth, refs.suggList.Size.Y.Offset)
+			suggList.Size = UDim2.fromOffset(suggestionWidth, suggList.Size.Y.Offset)
         end
     end
 
     function Session:syncSecondWidth(width)
         local refs = self.refs
 
-        if typeof(refs.secondRoot) == "Instance" then
-            refs.secondRoot.Size = UDim2.fromOffset(width, refs.secondRoot.Size.Y.Offset)
+		local secondRoot = frame(refs.secondRoot)
+		if secondRoot then
+            secondRoot.Size = UDim2.fromOffset(width, secondRoot.Size.Y.Offset)
         end
 
-        if typeof(refs.secondPill) == "Instance" and refs.secondPill.Visible then
-            refs.secondPill.Size = UDim2.fromOffset(width, refs.secondPill.Size.Y.Offset)
+		local secondPill = frame(refs.secondPill)
+		if secondPill and secondPill.Visible then
+            secondPill.Size = UDim2.fromOffset(width, secondPill.Size.Y.Offset)
         end
     end
 
@@ -541,7 +602,7 @@ function Panel.attach(Session)
                     return
                 end
 
-                imports.Shape.layoutDetachedSecond(self, (self.config.motion.outputSmoothTime or 0.24) * 0.8, width)
+                Imports.Shape.layoutDetachedSecond(self, (self.config.motion.outputSmoothTime or 0.24) * 0.8, width)
             end)
 
             return
@@ -644,7 +705,7 @@ function Panel.attach(Session)
             return
         end
 
-        imports.Shape.hover(self)
+        Imports.Shape.hover(self)
     end
 
     function Session:updateShadows()
@@ -654,47 +715,50 @@ function Panel.attach(Session)
 
         local refs = self.refs
 
-        if typeof(refs.pillShadow) == "Instance" then
-            refs.pillShadow.Visible = true
+		local pillShadow = imageLabel(refs.pillShadow)
+		if pillShadow then
+            pillShadow.Visible = true
         end
 
-        if typeof(refs.suggShadow) == "Instance" and typeof(refs.suggList) == "Instance" then
+		local suggShadow = imageLabel(refs.suggShadow)
+		local suggList = scrollingFrame(refs.suggList)
+		if suggShadow and suggList then
             if self.suggestionsHiding then
-                refs.suggShadow.Visible = true
+                suggShadow.Visible = true
             else
-                refs.suggShadow.Visible = refs.suggList.Visible and refs.suggList.AbsoluteSize.Y > 1
+                suggShadow.Visible = suggList.Visible and suggList.AbsoluteSize.Y > 1
             end
         end
 
-        local target = typeof(refs.addChatPill) == "Instance" and refs.addChatPill.Visible and refs.addChatPill or nil
+		local addChatPill = textButton(refs.addChatPill)
+        local target = addChatPill and addChatPill.Visible and addChatPill or nil
 
-        if typeof(refs.stackShadow) == "Instance" then
+		local stackShadow = imageLabel(refs.stackShadow)
+		if stackShadow then
             if target then
-                refs.stackShadow.Visible = true
+                stackShadow.Visible = true
 
             elseif not self.stackShadowHiding then
-                refs.stackShadow.Visible = false
+                stackShadow.Visible = false
             end
         end
 
-        local secondTarget = self.hasSecondChat
-            and typeof(refs.secondPill) == "Instance"
-            and refs.secondPill.Visible
-            and refs.secondPill
-            or nil
+		local secondPill = frame(refs.secondPill)
+		local secondTarget = if self.hasSecondChat and secondPill and secondPill.Visible then secondPill else nil
 
-        if typeof(refs.secondShadow) == "Instance" then
+		local secondShadow = imageLabel(refs.secondShadow)
+		if secondShadow then
             if secondTarget then
-                refs.secondShadow.Visible = true
+                secondShadow.Visible = true
 
             elseif not self.secondShadowHiding then
-                refs.secondShadow.Visible = false
+                secondShadow.Visible = false
             end
         end
     end
 
     function Session:layoutStack(duration, targetWidth)
-        imports.Shape.layout(self, duration, targetWidth)
+        Imports.Shape.layout(self, duration, targetWidth)
     end
 end
 

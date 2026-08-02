@@ -22,6 +22,9 @@ export type Argument = {
 	type: string?,
 }
 
+export type Schemas = { [string]: { Argument } }
+export type Provider = () -> { string }
+
 export type Outcome = {
 	message: string,
 	code: string?,
@@ -29,25 +32,25 @@ export type Outcome = {
 }
 
 export type DispatchModule = {
-	read host: (serverImplementations: { [string]: Run }?) -> RemoteFunction?,
-	read implement: (name: string, callback: Run) -> (),
-	read execute: (text: any, entity: any) -> any,
+	host: (serverImplementations: { [string]: Run }?) -> RemoteFunction?,
+	implement: (name: string, callback: Run) -> (),
+	execute: (text: any, entity: any) -> any,
 
-	read remoteName: string,
-	read timeout: number,
+	remoteName: string,
+	timeout: number,
 }
 
 export type RanksModule = {
-	read define: (id: number, name: string, aliases: { string }?) -> Rank,
-	read allows: (entity: any, required: any) -> boolean,
-	read set: (userId: any, rank: number | string) -> number,
+	define: (id: number, name: string, aliases: { string }?) -> Rank,
+	set: (userId: any, rank: number | string) -> number,
+	allows: (entity: any, required: any) -> boolean,
 
-	read resolve: (value: any) -> number?,
-	read get: (entity: any) -> number,
-	read bind: (fn: Resolver?) -> (),
+	resolve: (value: any) -> number?,
+	get: (entity: any) -> number,
+	bind: (fn: Resolver?) -> (),
 
-	read label: (id: number) -> string,
-	read list: () -> { Rank },
+	label: (id: number) -> string,
+	list: () -> { Rank },
 }
 
 export type Context = {
@@ -65,6 +68,8 @@ export type Context = {
 
 export type Run = (context: Context, ...any) -> any
 
+export type OpenCallback = () -> ()
+export type Disconnect = () -> ()
 export type Watcher = () -> ()
 
 export type Definition = {
@@ -97,6 +102,12 @@ export type Rank = {
 	aliases: { string },
 	builtin: boolean?,
 
+	name: string,
+	id: number,
+}
+
+export type DefaultRank = {
+	aliases: { string }?,
 	name: string,
 	id: number,
 }

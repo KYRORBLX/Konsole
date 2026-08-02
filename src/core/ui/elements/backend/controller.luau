@@ -1,3 +1,5 @@
+--!strict
+
 --[[
 	@name controller
 	@author driftingAurora, dullflowerr, alias; kioukaii
@@ -5,440 +7,469 @@
 ]]
 
 --// imports
-local imports = {
-    ContextActionService = game:GetService("ContextActionService"),
-    UserInputService = game:GetService("UserInputService"),
-    TextChatService = game:GetService("TextChatService"),
-    Players = game:GetService("Players"),
+local Imports = {
+	ContextActionService = game:GetService("ContextActionService"),
+	UserInputService = game:GetService("UserInputService"),
 
-    Session = require("../frontend/session"),
-    Text = require("../misc/text"),
-    Result = require("./result"),
+	TextChatService = game:GetService("TextChatService"),
+	Players = game:GetService("Players"),
+
+	Session = require("../frontend/session"),
+	Text = require("../misc/text"),
+
+	Result = require("./result"),
 }
 
+local Types = require("../../../../types/uiTypes")
+
+--// types
+type SessionConstructor = Types.SessionConstructor
+type MouseUnlockGetter = Types.MouseUnlockGetter
+type MouseUnlockSetter = Types.MouseUnlockSetter
+
+type ControllerState = Types.ControllerState
+type RenderResult = Types.RenderResult
+
+type Schemas = Types.Schemas
+type Runner = Types.Runner
+type Config = Types.Config
+
+export type Controller = Types.Controller
+
 --// locals
+local NewSession = (Imports.Session.new :: unknown) :: SessionConstructor
 local serial = 0
 
-local function keyList(keys)
-    local out = {}
+local function keyList(keys: { Enum.KeyCode }?): { Enum.KeyCode }
+	local out: { Enum.KeyCode } = {}
 
-    for _, key in keys or {} do
-        if typeof(key) == "EnumItem" then
-            table.insert(out, key)
-        end
-    end
+	if keys then
+		for _, key in keys do
+			table.insert(out, key)
+		end
+	end
 
-    return out
+	return out
 end
 
-local function typingKey(key)
-    return utf8.len(imports.UserInputService:GetStringForKeyCode(key)) == 1
+local function typingKey(key: Enum.KeyCode): boolean
+	return utf8.len(Imports.UserInputService:GetStringForKeyCode(key)) == 1
 end
 
-local function bindActivation(self)
-    imports.ContextActionService:UnbindAction(self.toggleActionName)
+local function bindActivation(self: Controller): ()
+	local toggleActionName = self.toggleActionName
 
-    if #self.activationKeys == 0 then
-        return
-    end
+	if not toggleActionName then
+		return
+	end
 
-    imports.ContextActionService:BindActionAtPriority(
-        self.toggleActionName,
-        function(_, inputState, input)
-            if inputState ~= Enum.UserInputState.Begin or not self.enabled then
-                return Enum.ContextActionResult.Pass
-            end
+	Imports.ContextActionService:UnbindAction(toggleActionName)
 
-            if imports.UserInputService:GetFocusedTextBox() and not self.open and typingKey(input.KeyCode) then
-                return Enum.ContextActionResult.Pass
-            end
+	if #self.activationKeys == 0 then
+		return
+	end
 
-            self:toggle()
+	Imports.ContextActionService:BindActionAtPriority(toggleActionName, function(_, inputState, input)
+		if inputState ~= Enum.UserInputState.Begin or not self.enabled then
+			return Enum.ContextActionResult.Pass
+		end
 
-            return Enum.ContextActionResult.Sink
-        end,
-        false,
-        
-        self.config.input.activationPriority,
-        table.unpack(self.activationKeys)
-    )
+		if Imports.UserInputService:GetFocusedTextBox() and not self.open and typingKey(input.KeyCode) then
+			return Enum.ContextActionResult.Pass
+		end
+
+		self:toggle()
+
+		return Enum.ContextActionResult.Sink
+	end, false, self.config.input.activationPriority, table.unpack(self.activationKeys))
 end
 
 --// public api
 local Controller = {}
 Controller.__index = Controller
 
-function Controller.new(config)
-    serial += 1
+function Controller.new(config: Config): Controller
+	serial += 1
 
-    local input = config.input
+	local input = config.input
 
-    local self = setmetatable({
-        
-        previousChatWindowEnabled = nil,
-        previousMouseIconEnabled = nil,
-        previousChatInputEnabled = nil,
-        
-        previousMouseBehavior = nil,
-        previousMouseUnlocked = nil,
-        mouseUnlockGet = nil,
-        
-        mouseUnlockSet = nil,
-        savedSession = nil,
-        session = nil,
-        
-        runner = nil,
-        gui = nil,
-        
-        activationKeys = keyList(input.activationKeys),
-        toggleActionName = `KonsoleToggle_{serial}`,
-        
-        activationUnlocksMouse = false,
-        enabled = true,
-        open = false,
-        
-        config = config,
-        
-        suggestions = {},
-        schemas = {},
- 
-    }, Controller)
+	local self = (setmetatable({
 
-    bindActivation(self)
+		previousChatWindowEnabled = nil,
+		previousMouseIconEnabled = nil,
+		previousChatInputEnabled = nil,
 
-    return self
+		previousMouseBehavior = nil,
+		previousMouseUnlocked = nil,
+		mouseUnlockGet = nil,
+
+		mouseUnlockSet = nil,
+		savedSession = nil,
+		session = nil,
+
+		runner = nil,
+		gui = nil,
+
+		activationKeys = keyList(input.activationKeys),
+		toggleActionName = `KonsoleToggle_{serial}`,
+
+		activationUnlocksMouse = false,
+		enabled = true,
+		open = false,
+
+		config = config,
+
+		suggestions = {},
+		schemas = {},
+	} :: ControllerState, Controller) :: unknown) :: Controller
+
+	bindActivation(self)
+
+	return self
 end
 
-function Controller:setChatSuppressed(enabled)
-    pcall(function()
-        local chatWindow = imports.TextChatService.ChatWindowConfiguration
-        local chatInput = imports.TextChatService.ChatInputBarConfiguration
+function Controller.setChatSuppressed(self: Controller, enabled: boolean): ()
+	pcall(function()
+		local chatWindow = Imports.TextChatService.ChatWindowConfiguration
+		local chatInput = Imports.TextChatService.ChatInputBarConfiguration
 
-        if enabled then
-            if self.previousChatWindowEnabled == nil then
-                self.previousChatWindowEnabled = chatWindow.Enabled
-            end
+		if enabled then
+			if self.previousChatWindowEnabled == nil then
+				self.previousChatWindowEnabled = chatWindow.Enabled
+			end
 
-            if self.previousChatInputEnabled == nil then
-                self.previousChatInputEnabled = chatInput.Enabled
-            end
+			if self.previousChatInputEnabled == nil then
+				self.previousChatInputEnabled = chatInput.Enabled
+			end
 
-            chatWindow.Enabled = false
-            chatInput.Enabled = false
+			chatWindow.Enabled = false
+			chatInput.Enabled = false
 
-            return
-        end
+			return
+		end
 
-        if self.previousChatWindowEnabled ~= nil then
-            chatWindow.Enabled = self.previousChatWindowEnabled
-        end
+		if self.previousChatWindowEnabled ~= nil then
+			chatWindow.Enabled = self.previousChatWindowEnabled
+		end
 
-        if self.previousChatInputEnabled ~= nil then
-            chatInput.Enabled = self.previousChatInputEnabled
-        end
+		if self.previousChatInputEnabled ~= nil then
+			chatInput.Enabled = self.previousChatInputEnabled
+		end
 
-        self.previousChatWindowEnabled = nil
-        self.previousChatInputEnabled = nil
-    end)
+		self.previousChatWindowEnabled = nil
+		self.previousChatInputEnabled = nil
+	end)
 end
 
-function Controller:readMouseUnlocked()
-    if imports.Text.callable(self.mouseUnlockGet) then
-        local ok, value = pcall(self.mouseUnlockGet)
+function Controller.readMouseUnlocked(self: Controller): boolean
+	local mouseUnlockGet = self.mouseUnlockGet
 
-        if ok and type(value) == "boolean" then
-            return value
-        end
-    end
+	if mouseUnlockGet then
+		local ok, value = pcall(mouseUnlockGet)
 
-    return imports.UserInputService.MouseBehavior == Enum.MouseBehavior.Default
+		if ok and type(value) == "boolean" then
+			return value
+		end
+	end
+
+	return Imports.UserInputService.MouseBehavior == Enum.MouseBehavior.Default
 end
 
-function Controller:writeMouseUnlocked(enabled)
-    if imports.Text.callable(self.mouseUnlockSet) then
-        local ok = pcall(self.mouseUnlockSet, enabled == true)
+function Controller.writeMouseUnlocked(self: Controller, enabled: boolean): ()
+	local mouseUnlockSet = self.mouseUnlockSet
 
-        if ok then
-            return
-        end
-    end
+	if mouseUnlockSet then
+		local ok = pcall(mouseUnlockSet, enabled == true)
 
-    if enabled then
-        imports.UserInputService.MouseBehavior = Enum.MouseBehavior.Default
-        imports.UserInputService.MouseIconEnabled = true
-        
-    elseif self.previousMouseBehavior ~= nil then
-        imports.UserInputService.MouseBehavior = self.previousMouseBehavior
-        imports.UserInputService.MouseIconEnabled = self.previousMouseIconEnabled ~= false
-        
-    else
-        imports.UserInputService.MouseBehavior = Enum.MouseBehavior.LockCenter
-        imports.UserInputService.MouseIconEnabled = false
-    end
+		if ok then
+			return
+		end
+	end
+
+	if enabled then
+		Imports.UserInputService.MouseBehavior = Enum.MouseBehavior.Default
+		Imports.UserInputService.MouseIconEnabled = true
+	elseif self.previousMouseBehavior ~= nil then
+		Imports.UserInputService.MouseBehavior = self.previousMouseBehavior
+		Imports.UserInputService.MouseIconEnabled = self.previousMouseIconEnabled ~= false
+	else
+		Imports.UserInputService.MouseBehavior = Enum.MouseBehavior.LockCenter
+		Imports.UserInputService.MouseIconEnabled = false
+	end
 end
 
-function Controller:setMouseUnlocked(enabled)
-    if enabled then
-        if not self.activationUnlocksMouse then
-            return
-        end
+function Controller.setMouseUnlocked(self: Controller, enabled: boolean): ()
+	if enabled then
+		if not self.activationUnlocksMouse then
+			return
+		end
 
-        if self.previousMouseUnlocked == nil then
-            self.previousMouseUnlocked = self:readMouseUnlocked()
-        end
+		if self.previousMouseUnlocked == nil then
+			self.previousMouseUnlocked = self:readMouseUnlocked()
+		end
 
-        if not imports.Text.callable(self.mouseUnlockSet) and self.previousMouseBehavior == nil then
-            self.previousMouseBehavior = imports.UserInputService.MouseBehavior
-            self.previousMouseIconEnabled = imports.UserInputService.MouseIconEnabled
-        end
+		if not Imports.Text.callable(self.mouseUnlockSet) and self.previousMouseBehavior == nil then
+			self.previousMouseBehavior = Imports.UserInputService.MouseBehavior
+			self.previousMouseIconEnabled = Imports.UserInputService.MouseIconEnabled
+		end
 
-        self:writeMouseUnlocked(true)
-        
-    elseif self.previousMouseUnlocked ~= nil then
-        self:writeMouseUnlocked(self.previousMouseUnlocked)
+		self:writeMouseUnlocked(true)
+	elseif self.previousMouseUnlocked ~= nil then
+		self:writeMouseUnlocked(self.previousMouseUnlocked)
 
-        self.previousMouseIconEnabled = nil
-        self.previousMouseBehavior = nil
-        self.previousMouseUnlocked = nil
-    end
+		self.previousMouseIconEnabled = nil
+		self.previousMouseBehavior = nil
+		self.previousMouseUnlocked = nil
+	end
 end
 
-function Controller:ensureGui()
-    local player = imports.Players.LocalPlayer
-    local playerGui = player and player:FindFirstChildOfClass("PlayerGui")
+function Controller.ensureGui(self: Controller): ScreenGui?
+	local player = Imports.Players.LocalPlayer
+	local playerGui = player and player:FindFirstChildOfClass("PlayerGui")
 
-    if not playerGui then
-        return nil
-    end
+	if not playerGui then
+		return nil
+	end
 
-    local existing = playerGui:FindFirstChild("Konsole")
+	local existing = playerGui:FindFirstChild("Konsole")
 
-    if existing then
-        existing:Destroy()
-    end
+	if existing then
+		existing:Destroy()
+	end
 
-    local gui = Instance.new("ScreenGui")
+	local gui = Instance.new("ScreenGui")
 
-    gui.Parent = playerGui
-    gui.Name = "Konsole"
-    
-    gui.IgnoreGuiInset = true
-    gui.ResetOnSpawn = false
-    
-    gui.DisplayOrder = self.config.panel.displayOrder
-    gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-    
-    self.gui = gui
+	gui.Parent = playerGui
+	gui.Name = "Konsole"
 
-    return gui
+	gui.IgnoreGuiInset = true
+	gui.ResetOnSpawn = false
+
+	gui.DisplayOrder = self.config.panel.displayOrder
+	gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+
+	self.gui = gui
+
+	return gui
 end
 
-function Controller:invoke(text)
-    if not imports.Text.callable(self.runner) then
-        return imports.Result.err("no-runner", "No command runner bound.")
-    end
+function Controller.invoke(self: Controller, text: string): RenderResult
+	local runner = self.runner
 
-    local ok, response = pcall(self.runner, text)
+	if not runner then
+		return Imports.Result.err("no-runner", "No command runner bound.")
+	end
 
-    if not ok then
-        return imports.Result.err("runner-error", tostring(response))
-    end
+	local ok, response = pcall(runner, text)
 
-    return imports.Result.from(response)
+	if not ok then
+		return Imports.Result.err("runner-error", tostring(response))
+	end
+
+	return Imports.Result.from(response)
 end
 
-function Controller:bindRun(fn)
-    self.runner = imports.Text.callable(fn) and fn or nil
+function Controller.bindRun(self: Controller, fn: Runner?): ()
+	self.runner = fn
 end
 
-function Controller:setSuggestions(list)
-    self.suggestions = type(list) == "table" and list or {}
+function Controller.setSuggestions(self: Controller, list: { string }): ()
+	self.suggestions = list
 
-    if self.session then
-        self.session:setSuggestions(self.suggestions)
-    end
+	if self.session then
+		self.session:setSuggestions(self.suggestions)
+	end
 end
 
-function Controller:setSchemas(map)
-    self.schemas = type(map) == "table" and map or {}
+function Controller.setSchemas(self: Controller, map: Schemas): ()
+	self.schemas = map
 
-    if self.session then
-        self.session:setSchemas(self.schemas)
-    end
+	if self.session then
+		self.session:setSchemas(self.schemas)
+	end
 end
 
-function Controller:show()
-    if not self.enabled then
-        return
-    end
+function Controller.show(self: Controller): ()
+	if not self.enabled then
+		return
+	end
 
-    if self.session and self.gui and self.gui.Parent then
-        self.session:focus()
-        return
-    end
+	if self.session and self.gui and self.gui.Parent then
+		self.session:focus()
+		return
+	end
 
-    local gui = self:ensureGui()
+	local gui = self:ensureGui()
 
-    if not gui then
-        return
-    end
+	if not gui then
+		return
+	end
 
-    local savedPosition = type(self.savedSession) == "table" and self.savedSession.position or nil
-    local savedSecondPosition = type(self.savedSession) == "table" and self.savedSession.secondPosition or nil
+	local savedSession = self.savedSession
+	local savedPosition = savedSession and savedSession.position or nil
+	local savedSecondPosition = savedSession and savedSession.secondPosition or nil
 
-    local session = imports.Session.new(gui, self.config, savedPosition, savedSecondPosition)
+	local session = NewSession(gui, self.config, savedPosition, savedSecondPosition)
 
-    session:bindCloseRequest(function()
-        self:hide()
-    end)
+	if not session then
+		gui:Destroy()
+		self.gui = nil
+		return
+	end
 
-    session:bindSubmit(function(text, channel)
-        local trimmed = string.lower(string.match(text, "^%s*(%S*)") or "")
+	session:bindCloseRequest(function()
+		self:hide()
+	end)
 
-        if trimmed == "close" or trimmed == "exit" then
-            if channel == 2 then
-                session:closeSecond()
-            else
-                self:hide()
-                self.savedSession = nil
-            end
+	session:bindSubmit(function(text: string, channel: number)
+		local trimmed = string.lower(string.match(text, "^%s*(%S*)") or "")
 
-            return
-        end
+		if trimmed == "close" or trimmed == "exit" then
+			if channel == 2 then
+				session:closeSecond()
+			else
+				self:hide()
+				self.savedSession = nil
+			end
 
-        if trimmed == "clear" or trimmed == "cls" or trimmed == "clr" then
-            session:clear(channel)
-            return
-        end
+			return
+		end
 
-        session:appendPending(text, channel)
+		if trimmed == "clear" or trimmed == "cls" or trimmed == "clr" then
+			session:clear(channel)
+			return
+		end
 
-        task.spawn(function()
-            local result = self:invoke(text)
+		session:appendPending(text, channel)
 
-            if self.session == session then
-                session:appendResult(result, channel)
-            end
-        end)
-    end)
+		task.spawn(function()
+			local result = self:invoke(text)
 
-    session:restoreSnapshot(self.savedSession)
-    session:setSuggestions(self.suggestions)
-    session:setSchemas(self.schemas)
+			if self.session == session then
+				session:appendResult(result, channel)
+			end
+		end)
+	end)
 
-    self.session = session
-    self.open = true
+	session:restoreSnapshot(self.savedSession)
+	session:setSuggestions(self.suggestions)
+	session:setSchemas(self.schemas)
 
-    self:setChatSuppressed(true)
-    self:setMouseUnlocked(true)
+	self.session = session
+	self.open = true
 
-    session:focus()
+	self:setChatSuppressed(true)
+	self:setMouseUnlocked(true)
+
+	session:focus()
 end
 
-function Controller:hide()
-    local session = self.session
-    local gui = self.gui
+function Controller.hide(self: Controller): ()
+	local session = self.session
+	local gui = self.gui
 
-    if session then
-        self.savedSession = session:snapshot()
-    end
+	if session then
+		self.savedSession = session:snapshot()
+	end
 
-    self.session = nil
-    self.open = false
-    self.gui = nil
+	self.session = nil
+	self.open = false
+	self.gui = nil
 
-    self:setChatSuppressed(false)
-    self:setMouseUnlocked(false)
+	self:setChatSuppressed(false)
+	self:setMouseUnlocked(false)
 
-    if session then
-        session:destroy()
+	if session then
+		session:destroy()
 
-        task.delay(0.04 + (self.config.motion.openSmoothTime or 0.46) + 0.08, function()
-            if gui and gui.Parent then
-                gui:Destroy()
-            end
-        end)
-        
-    elseif gui and gui.Parent then
-        gui:Destroy()
-    end
+		task.delay(0.04 + (self.config.motion.openSmoothTime or 0.46) + 0.08, function()
+			if gui and gui.Parent then
+				gui:Destroy()
+			end
+		end)
+	elseif gui and gui.Parent then
+		gui:Destroy()
+	end
 end
 
-function Controller:toggle()
-    if self.open then
-        self:hide()
-        
-    else
-        self:show()
-    end
+function Controller.toggle(self: Controller): ()
+	if self.open then
+		self:hide()
+	else
+		self:show()
+	end
 end
 
-function Controller:focus()
-    if self.session then
-        self.session:focus()
-        
-    else
-        self:show()
-    end
+function Controller.focus(self: Controller): ()
+	if self.session then
+		self.session:focus()
+	else
+		self:show()
+	end
 end
 
-function Controller:clear()
-    if self.session then
-        self.session:clear()
-    end
+function Controller.clear(self: Controller): ()
+	if self.session then
+		self.session:clear()
+	end
 end
 
-function Controller:getCursorTarget()
-    if self.session then
-        return self.session:getCursorTarget()
-    end
+function Controller.getCursorTarget(self: Controller): GuiObject?
+	if self.session then
+		return self.session:getCursorTarget()
+	end
 
-    return nil
+	return nil
 end
 
-function Controller:setActivationKeys(keys)
-    self.activationKeys = keyList(keys)
+function Controller.setActivationKeys(self: Controller, keys: { Enum.KeyCode }): ()
+	self.activationKeys = keyList(keys)
 
-    bindActivation(self)
+	bindActivation(self)
 end
 
-function Controller:setEnabled(enabled)
-    self.enabled = enabled == true
+function Controller.setEnabled(self: Controller, enabled: boolean): ()
+	self.enabled = enabled == true
 
-    if not self.enabled then
-        self:hide()
-    end
+	if not self.enabled then
+		self:hide()
+	end
 end
 
-function Controller:setActivationUnlocksMouse(enabled)
-    self.activationUnlocksMouse = enabled == true
+function Controller.setActivationUnlocksMouse(self: Controller, enabled: boolean): ()
+	self.activationUnlocksMouse = enabled == true
 
-    if self.open then
-        self:setMouseUnlocked(false)
-        
-        self:setMouseUnlocked(true)
-    end
+	if self.open then
+		self:setMouseUnlocked(false)
+
+		self:setMouseUnlocked(true)
+	end
 end
 
-function Controller:setMouseUnlockDriver(getFn, setFn)
-    self.mouseUnlockGet = imports.Text.callable(getFn) and getFn or nil
-    self.mouseUnlockSet = imports.Text.callable(setFn) and setFn or nil
+function Controller.setMouseUnlockDriver(
+	self: Controller,
+	getFn: MouseUnlockGetter?,
+	setFn: MouseUnlockSetter?
+): ()
+	self.mouseUnlockGet = getFn
+	self.mouseUnlockSet = setFn
 
-    if self.open and self.activationUnlocksMouse then
-        self:setMouseUnlocked(false)
-        
-        self:setMouseUnlocked(true)
-    end
+	if self.open and self.activationUnlocksMouse then
+		self:setMouseUnlocked(false)
+
+		self:setMouseUnlocked(true)
+	end
 end
 
-function Controller:destroy()
-    self:hide()
+function Controller.destroy(self: Controller): ()
+	self:hide()
 
-    if self.toggleActionName then
-        
-        imports.ContextActionService:UnbindAction(self.toggleActionName)
-        self.toggleActionName = nil
-    end
+	local toggleActionName = self.toggleActionName
+
+	if toggleActionName then
+		Imports.ContextActionService:UnbindAction(toggleActionName)
+		self.toggleActionName = nil
+	end
 end
 
 return Controller

@@ -1,12 +1,12 @@
+--!strict
+
 --[[
 	@name cmds
 	@author driftingAurora, dullflowerr, alias; kioukaii
 	@time July 3, 2026
 ]]
 
---!strict
-
-local imports = {
+local Imports = {
 	Kommand = require("../../core/shared/kommand"),
 }
 
@@ -41,7 +41,7 @@ return table.freeze({
 	description = "Lists every command registered in the game.",
 	run = function()
 		local rows = {}
-		for _, command in imports.Kommand.list() do
+		for _, command in Imports.Kommand.list() do
 			table.insert(rows, {
 				Command = command.name,
 				Rank = tostring(command.rank),

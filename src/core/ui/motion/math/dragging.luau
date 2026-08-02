@@ -7,19 +7,18 @@
 ]]
 
 --// imports
-local imports = {
-	RunService = game:GetService("RunService"),
+local Imports = {
 	TweenService = game:GetService("TweenService"),
+	RunService = game:GetService("RunService"),
 }
+
+local Types = require("../../../../types/uiTypes")
 
 --// types
-type TargetChanged = (UDim2) -> ()
-type DragMoved = () -> ()
+type TargetChanged = Types.TargetChanged
+type DragMoved = Types.DragMoved
 
-export type Binding = {
-	setEnabled: (boolean) -> (),
-	setPosition: (UDim2) -> (),
-}
+export type Binding = Types.DraggingBinding
 
 --// locals
 local stopDistance = 0.25
@@ -178,7 +177,7 @@ function Dragging.attach(
 			setTarget(positionFrom(point, boundsSize))
 		end))
 	end
-	track(imports.RunService.RenderStepped:Connect(function(deltaTime)
+	track(Imports.RunService.RenderStepped:Connect(function(deltaTime)
 		if not moving then
 			return
 		end
@@ -191,7 +190,7 @@ function Dragging.attach(
 		local currentPoint = pointFrom(root.Position, boundsSize)
 		local targetPoint = pointFrom(target, boundsSize)
 		local nextPoint, nextVelocity =
-			imports.TweenService:SmoothDamp(currentPoint, targetPoint, velocity, smoothTime, math.huge, deltaTime)
+			Imports.TweenService:SmoothDamp(currentPoint, targetPoint, velocity, smoothTime, math.huge, deltaTime)
 
         velocity = nextVelocity :: Vector2
         nextPoint = nextPoint :: Vector2

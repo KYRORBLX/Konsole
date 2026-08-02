@@ -7,13 +7,13 @@
 ]]
 
 --// imports
-local imports = {
+local Imports = {
 	Render = require("@self/render"),
 }
 
 --// public api
-local ui = {
-	render = imports.Render,
+local UI = {
+	render = Imports.Render,
 }
 
-return table.freeze(ui)
+return table.freeze(UI)

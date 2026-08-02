@@ -7,15 +7,14 @@
 ]]
 
 --// imports
-local imports = {
+local Imports = {
 	TweenService = game:GetService("TweenService"),
 }
 
+local Types = require("../../../../types/uiTypes")
+
 --// types
-type State = {
-	target: number,
-	tween: Tween?,
-}
+type State = Types.ScrollState
 
 --// locals
 local states: { [ScrollingFrame]: State } = {}
@@ -58,7 +57,7 @@ function Scroll.wheel(frame: ScrollingFrame, delta: number, maximum: number): (T
 		state.tween:Cancel()
 	end
 
-	local tween = imports.TweenService:Create(
+	local tween = Imports.TweenService:Create(
 		frame,
 		TweenInfo.new(duration, Enum.EasingStyle.Quint, Enum.EasingDirection.Out),
 		{

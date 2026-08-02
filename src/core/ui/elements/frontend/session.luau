@@ -5,1273 +5,1369 @@
 ]]
 
 --// imports
-local imports = {
-    UserInputService = game:GetService("UserInputService"),
+local Imports = {
+	UserInputService = game:GetService("UserInputService"),
 
-    Dragging = require("../../motion/math/dragging"),
-    Reveal = require("../../motion/suggest/reveal"),
+	Dragging = require("../../motion/math/dragging"),
+	Reveal = require("../../motion/suggest/reveal"),
 	Scroll = require("../../motion/math/scroll"),
-    Shape = require("../../motion/math/shape"),
-    Slide = require("../../motion/math/slide"),
-    Tween = require("../../motion/math/tween"),
 
-    Suggest = require("../../motion/suggest"),
-    History = require("../backend/history"),
-    Suggestions = require("./suggestions"),
+	Shape = require("../../motion/math/shape"),
+	Slide = require("../../motion/math/slide"),
+	Tween = require("../../motion/math/tween"),
 
-    View = require("../misc/view"),
-    Placement = require("../misc/placement"),
-    Text = require("../misc/text"),
-    Hints = require("./hints"),
+	Suggest = require("../../motion/suggest"),
+	Placement = require("../misc/placement"),
+	History = require("../backend/history"),
 
-    Panel = require("./panel"),
+	Suggestions = require("./suggestions"),
+	View = require("../misc/view"),
+	Text = require("../misc/text"),
+
+	Hints = require("./hints"),
+	Panel = require("./panel"),
 }
 
+local Types = require("../../../../types/uiTypes")
+
+type Refs = Types.SessionRefs
+
 --// locals
-local userInputService = imports.UserInputService
-local Dragging = imports.Dragging
-local Suggest = imports.Suggest
-local History = imports.History
+local UserInputService = Imports.UserInputService
+local Dragging = Imports.Dragging
+local Suggest = Imports.Suggest
+local History = Imports.History
 
-local Reveal = imports.Reveal
-local Scroll = imports.Scroll
-local Shape = imports.Shape
-local Slide = imports.Slide
-local Tween = imports.Tween
+local Reveal = Imports.Reveal
+local Scroll = Imports.Scroll
+local Shape = Imports.Shape
 
-local View = imports.View
-local Text = imports.Text
+local Slide = Imports.Slide
+local Tween = Imports.Tween
+
+local View = Imports.View
+local Text = Imports.Text
 
 local function ch(value)
-    return value == 2 and 2 or 1
+	return value == 2 and 2 or 1
 end
 
-local function mainBox(self, channel)
-    return ch(channel) == 2 and self.refs.SecondInputBox or self.refs.InputBox
+local function mainBox(self, channel): TextBox?
+	local input = ch(channel) == 2 and self.refs.SecondInputBox or self.refs.InputBox
+
+	if typeof(input) == "Instance" and input:IsA("TextBox") then
+		return input
+	end
+
+	return nil
 end
 
-local function placeholder(self, channel)
-    return ch(channel) == 2 and self.refs.SecondPlaceholder or self.refs.Placeholder
+local function placeholder(self, channel): TextLabel?
+	local label = ch(channel) == 2 and self.refs.SecondPlaceholder or self.refs.Placeholder
+
+	if typeof(label) == "Instance" and label:IsA("TextLabel") then
+		return label
+	end
+
+	return nil
 end
 
 local function clean(value)
-    return Text.cleanStart((string.gsub(tostring(value or ""), "\t", "")))
+	return Text.cleanStart((string.gsub(tostring(value or ""), "\t", "")))
 end
 
 local function copyHistory(items)
-    local out = {}
+	local out = {}
 
-    for index, item in items or {} do
-        out[index] = {
-            wide = item.wide == true,
-            kind = item.kind,
-            text = item.text,
-        }
-    end
-    return out
+	for index, item in items or {} do
+		out[index] = {
+			wide = item.wide == true,
+			kind = item.kind,
+			text = item.text,
+		}
+	end
+	return out
 end
 
 local function setDraggingEnabled(self, enabled)
-    local refs = self.refs
+	local refs = self.refs
 
-    refs.mainDragging.setEnabled(enabled)
-    refs.secondDragging.setEnabled(enabled and self.hasSecondChat)
+	refs.mainDragging.setEnabled(enabled)
+	refs.secondDragging.setEnabled(enabled and self.hasSecondChat)
 end
 
 local function syncAttachedSecond(self)
-    if self.secondDetached or not self.hasSecondChat then
-        return
-    end
+	if self.secondDetached or not self.hasSecondChat then
+		return
+	end
 
-    local refs = self.refs
-    local mainHeight = math.max(refs.pill.Size.Y.Offset, self.config.panel.height)
-    local position = imports.Placement.attachedSecond(
-        refs.root.Position,
-        refs.root,
-        mainHeight,
-        self.config.panel.stackGap or 8
-    )
+	local refs = self.refs
+	local mainHeight = math.max(refs.pill.Size.Y.Offset, self.config.panel.height)
+	local position =
+		Imports.Placement.attachedSecond(refs.root.Position, refs.root, mainHeight, self.config.panel.stackGap or 8)
 
-    refs.secondRoot.Position = position
-    self.secondRootPosition = position
+	refs.secondRoot.Position = position
+	self.secondRootPosition = position
 end
 
 local function detachSecond(self)
-    if self.secondDetached or not self.hasSecondChat then
-        return
-    end
+	if self.secondDetached or not self.hasSecondChat then
+		return
+	end
 
-    local refs = self.refs
-    local width = self.layoutTargetWidth or refs.root.Size.X.Offset
+	local refs = self.refs
+	local width = self.layoutTargetWidth or refs.root.Size.X.Offset
 
-    local secondWidth = self:activeWidth(2)
-    
-    local rootPosition = refs.root.Position
-    local duration = self.config.motion.outputSmoothTime
+	local secondWidth = self:activeWidth(2)
 
-    local stackExtra = self:stackExtra()
+	local rootPosition = refs.root.Position
+	local duration = self.config.motion.outputSmoothTime
 
-    self.secondDetached = true
-    self.secondLayoutTargetWidth = secondWidth
- 
-    refs.secondRoot.Visible = true
-    refs.secondPill.Visible = true
+	local stackExtra = self:stackExtra()
 
-    refs.secondDragging.setPosition(refs.secondRoot.Position)
+	self.secondDetached = true
+	self.secondLayoutTargetWidth = secondWidth
 
-    local mainPosition = imports.Placement.withoutStack(rootPosition, refs.root, stackExtra)
+	refs.secondRoot.Visible = true
+	refs.secondPill.Visible = true
 
-    Tween.to(refs.root, { Position = mainPosition }, 0)
+	refs.secondDragging.setPosition(refs.secondRoot.Position)
 
-    refs.root.Position = mainPosition
-    self.rootPosition = mainPosition
+	local mainPosition = Imports.Placement.withoutStack(rootPosition, refs.root, stackExtra)
 
-     refs.pillBtn.Position = UDim2.new(0.5, 0, 1, 0)
-     refs.pill.Position = UDim2.new(0.5, 0, 1, 0)
+	Tween.to(refs.root, { Position = mainPosition }, 0)
 
-    refs.stackShadow.Visible = false
-    refs.addChatPill.Visible = false
+	refs.root.Position = mainPosition
+	self.rootPosition = mainPosition
 
-    self:layoutStack(duration, width)
-    self:placeSuggestions()
+	refs.pillBtn.Position = UDim2.new(0.5, 0, 1, 0)
+	refs.pill.Position = UDim2.new(0.5, 0, 1, 0)
 
-    Shape.layoutDetachedSecond(self, duration, secondWidth)
+	refs.stackShadow.Visible = false
+	refs.addChatPill.Visible = false
+
+	self:layoutStack(duration, width)
+	self:placeSuggestions()
+
+	Shape.layoutDetachedSecond(self, duration, secondWidth)
 end
 
 local function attachAddChat(self, savedMainPosition)
-    if not self.isExpanded then
-        return
-    end
+	if not self.isExpanded then
+		return
+	end
 
-    local refs = self.refs
-    local mainPosition = savedMainPosition or refs.root.Position
+	local refs = self.refs
+	local mainPosition = savedMainPosition or refs.root.Position
 
-    if not self.hasOutput then
-        refs.mainDragging.setPosition(mainPosition)
-        return
-    end
+	if not self.hasOutput then
+		refs.mainDragging.setPosition(mainPosition)
+		return
+	end
 
-    local width = self.layoutTargetWidth or refs.root.Size.X.Offset
-    local panel = self.config.panel
+	local width = self.layoutTargetWidth or refs.root.Size.X.Offset
+	local panel = self.config.panel
 
-    local stackExtra = panel.height + (panel.stackGap or 8)
+	local stackExtra = panel.height + (panel.stackGap or 8)
 
-    refs.root.Size = UDim2.fromOffset(width, self:mainHeight() + stackExtra)
+	refs.root.Size = UDim2.fromOffset(width, self:mainHeight() + stackExtra)
 
-    refs.pillBtn.Position = UDim2.new(0.5, 0, 1, -stackExtra)
-    refs.pill.Position = UDim2.new(0.5, 0, 1, -stackExtra)
+	refs.pillBtn.Position = UDim2.new(0.5, 0, 1, -stackExtra)
+	refs.pill.Position = UDim2.new(0.5, 0, 1, -stackExtra)
 
-    local rootPosition = imports.Placement.withStack(mainPosition, refs.root, stackExtra)
+	local rootPosition = Imports.Placement.withStack(mainPosition, refs.root, stackExtra)
 
-    refs.mainDragging.setPosition(rootPosition)
+	refs.mainDragging.setPosition(rootPosition)
 end
 
 local function setRecall(self, channel, input, text)
-    self:clearHintChips(channel)
+	self:clearHintChips(channel)
 
-    self.recallingCommand[channel] = true
+	self.recallingCommand[channel] = true
 
-    input.CursorPosition = #input.Text + 1
-    input.Text = text
+	input.Text = text
+	input.CursorPosition = #text + 1
 
-    input:CaptureFocus()
+	input:CaptureFocus()
+	self:onCommandText(channel, text)
 
-    task.defer(function()
-        self.recallingCommand[channel] = nil
-    end)
+	task.defer(function()
+		self.recallingCommand[channel] = nil
+	end)
 end
 
 local function keyInput(self, input)
-    if not self.isExpanded then
-        return false
-    end
+	if not self.isExpanded then
+		return false
+	end
 
-    local key = input.KeyCode
+	local key = input.KeyCode
+	local control = UserInputService:IsKeyDown(Enum.KeyCode.LeftControl)
+		or UserInputService:IsKeyDown(Enum.KeyCode.RightControl)
 
-    if key == Enum.KeyCode.Tab then
-        return self:acceptSuggestion()
+	if key == Enum.KeyCode.Tab then
+		return self:acceptSuggestion()
+	elseif key == Enum.KeyCode.Down then
+		return self:moveSelection(1) or self:recallCommand(1)
+	elseif key == Enum.KeyCode.Up then
+		return self:moveSelection(-1) or self:recallCommand(-1)
+	elseif key == Enum.KeyCode.Right then
+		return self:moveArgument(1, control)
+	elseif key == Enum.KeyCode.Backspace then
+		local active = self:focusedChip()
+		if active and (active.box.Text ~= "" or self.clearedArgument == active.box) then
+			return false
+		end
 
-    elseif key == Enum.KeyCode.Down then
-        return self:moveSelection(1) or self:recallCommand(1)
+		local moved = self:moveArgument(-1)
+		if not moved then
+			return false
+		end
 
-    elseif key == Enum.KeyCode.Up then
-        return self:moveSelection(-1) or self:recallCommand(-1)
+		task.delay(0.3, function()
+			while self.isExpanded and input.UserInputState ~= Enum.UserInputState.End do
+				self:moveArgument(-1)
+				task.wait(0.05)
+			end
+		end)
 
-    elseif key == Enum.KeyCode.Right then
-        return self:moveArgument(1)
+		return true
+	elseif key == Enum.KeyCode.Left then
+		return self:moveArgument(-1, control)
+	end
 
-    elseif key == Enum.KeyCode.Backspace then
-        task.delay(0.3, function()
-            while self.isExpanded and input.UserInputState ~= Enum.UserInputState.End do
-                self:moveArgument(-1)
-                task.wait(0.05)
-            end
-        end)
-
-        return self:moveArgument(-1)
-
-    elseif key == Enum.KeyCode.Left then
-        return self:moveArgument(-1)
-    end
-
-    return false
+	return false
 end
 
 local function inShell(refs, point)
-
-    return View.pointIn(refs.pill, point)
-        or View.pointIn(refs.suggList, point)
-        or View.pointIn(refs.secondPill, point)
-        or View.pointIn(refs.addChatPill, point)
-
+	return View.pointIn(refs.pill, point)
+		or View.pointIn(refs.suggList, point)
+		or View.pointIn(refs.secondPill, point)
+		or View.pointIn(refs.addChatPill, point)
 end
 
 local function clickInput(self)
-    local refs = self.refs
-    local point = userInputService:GetMouseLocation()
+	local refs = self.refs
+	local point = UserInputService:GetMouseLocation()
 
-    if not inShell(refs, point) then
-        if self.config.input.forceclose and Text.callable(self.onCloseRequest) then
-            self.onCloseRequest()
+	if not inShell(refs, point) then
+		if self.config.input.forceclose and Text.callable(self.onCloseRequest) then
+			self.onCloseRequest()
+		else
+			self:collapse()
+		end
 
-        else
-            self:collapse()
-        end
+		return
+	end
 
-        return
-    end
+	if View.pointIn(refs.commandRow, point) or View.pointIn(refs.secondCommandRow, point) then
+		local focused = UserInputService:GetFocusedTextBox()
 
-    if View.pointIn(refs.commandRow, point) or View.pointIn(refs.secondCommandRow, point) then
-        local focused = userInputService:GetFocusedTextBox()
+		if focused then
+			focused:ReleaseFocus()
+		end
 
-        if focused then
-            focused:ReleaseFocus()
-        end
+		return
+	end
 
-        return
-    end
+	if View.pointIn(refs.secondPill, point) then
+		self.activeChannel = 2
 
-    if View.pointIn(refs.secondPill, point) then
-        self.activeChannel = 2
-
-        refs.SecondInputBox:CaptureFocus()
-
-    else
-        self.activeChannel = 1
-        refs.InputBox:CaptureFocus()
-    end
+		refs.SecondInputBox:CaptureFocus()
+	else
+		self.activeChannel = 1
+		refs.InputBox:CaptureFocus()
+	end
 end
 
 local function bindText(self, input, channel)
-    return input:GetPropertyChangedSignal("Text"):Connect(function()
-        local text = clean(input.Text)
-        if input.Text ~= text then
-            input.Text = text
-            return
-        end
+	return input:GetPropertyChangedSignal("Text"):Connect(function()
+		local text = clean(input.Text)
+		if input.Text ~= text then
+			input.Text = text
+			return
+		end
 
-        self.activeChannel = channel
+		self.activeChannel = channel
 
-        if not self.recallingCommand[channel] then
-            self.commandHistoryIndex[channel] = nil
+		if not self.recallingCommand[channel] then
+			self.commandHistoryIndex[channel] = nil
 
-            self.commandDraft[channel] = nil
-        end
+			self.commandDraft[channel] = nil
+		end
 
-        self:setPlaceholder(channel, text == "")
+		self:setPlaceholder(channel, text == "")
 
-        if self.recallingCommand[channel] then
+		if self.recallingCommand[channel] then
+			self:queueVisibleWidthRefresh(channel)
+			self:hideSuggestions()
 
-            self:queueVisibleWidthRefresh(channel)
-            self:hideSuggestions()
+			return
+		end
 
-            return
-        end
+		self:onCommandText(channel, text)
 
-        self:onCommandText(channel, text)
-
-        self:queueVisibleWidthRefresh(channel)
-    end)
+		self:queueVisibleWidthRefresh(channel)
+	end)
 end
 
 local function bindInput(self)
-    local refs = self.refs
+	local refs = self.refs
 
-    return userInputService.InputBegan:Connect(function(input, processed)
-        if keyInput(self, input) then
-            return
-        end
+	return UserInputService.InputBegan:Connect(function(input, processed)
+		if keyInput(self, input) then
+			return
+		end
 
-        if processed then
-            return
-        end
+		if processed then
+			return
+		end
 
-        if input.KeyCode == Enum.KeyCode.Escape then
-            self:collapse()
-            return
-        end
+		if input.KeyCode == Enum.KeyCode.Escape then
+			self:collapse()
+			return
+		end
 
-        if input.UserInputType ~= Enum.UserInputType.MouseButton1 or not self.isExpanded then
-            return
-        end
+		if input.UserInputType ~= Enum.UserInputType.MouseButton1 or not self.isExpanded then
+			return
+		end
 
-        if not self.config.input.forceclose and (refs.InputBox:IsFocused() or refs.SecondInputBox:IsFocused()) then
-            return
-        end
+		if not self.config.input.forceclose and (refs.InputBox:IsFocused() or refs.SecondInputBox:IsFocused()) then
+			return
+		end
 
-        clickInput(self)
-    end)
+		clickInput(self)
+	end)
 end
 
 local function scrollHistory(self, input)
-    if not self.isExpanded or input.UserInputType ~= Enum.UserInputType.MouseWheel then
-        return
-    end
+	if not self.isExpanded or input.UserInputType ~= Enum.UserInputType.MouseWheel then
+		return
+	end
 
-    local refs = self.refs
-    local point = userInputService:GetMouseLocation()
+	local refs = self.refs
+	local point = UserInputService:GetMouseLocation()
 
-    local channel, row
+	local channel, row
 
-    if View.pointIn(refs.secondCommandRow, point) then
-        channel = 2
-        row = refs.secondCommandRow
+	if View.pointIn(refs.secondCommandRow, point) then
+		channel = 2
+		row = refs.secondCommandRow
+	elseif View.pointIn(refs.commandRow, point) then
+		channel = 1
+		row = refs.commandRow
+	else
+		return
+	end
 
-    elseif View.pointIn(refs.commandRow, point) then
-        channel = 1
-        row = refs.commandRow
+	if not row.ScrollingEnabled then
+		return
+	end
 
-    else
-        return
-    end
+	local limit = math.max(0, self:rawHistoryHeight(channel) - self:historyHeight(channel))
 
-    if not row.ScrollingEnabled then
-        return
-    end
+	if limit <= 0 then
+		return
+	end
 
-    local limit = math.max(0, self:rawHistoryHeight(channel) - self:historyHeight(channel))
+	local tween, position = Scroll.wheel(row, -input.Position.Z * self:lineHeight() * 3, limit)
 
-    if limit <= 0 then
-        return
-    end
+	if not tween then
+		return
+	end
 
-    local tween, position = Scroll.wheel(row, -input.Position.Z * self:lineHeight() * 3, limit)
+	self.autoScroll[channel] = false
+	self.savedScroll[channel] = position
 
-    if not tween then
-        return
-    end
-
-    self.autoScroll[channel] = false
-    self.savedScroll[channel] = position
-
-    tween.Completed:Once(function()
-        task.defer(function()
-            if self.refs and not Scroll.animating(row) then
-                self:renderHistory(channel)
-                self:queueVisibleWidthRefresh(channel)
-            end
-        end)
-    end)
+	tween.Completed:Once(function()
+		task.defer(function()
+			if self.refs and not Scroll.animating(row) then
+				self:renderHistory(channel)
+				self:queueVisibleWidthRefresh(channel)
+			end
+		end)
+	end)
 end
 
 local function bindRefs(self)
-    local refs = self.refs
-    local motion = self.config.motion
+	local refs = self.refs
+	local motion = self.config.motion
 
-    local function track(conn)
-        table.insert(self.connections, conn)
-    end
+	local function track(conn)
+		table.insert(self.connections, conn)
+	end
 
-    refs.mainDragging = Dragging.attach(refs.root, { refs.commandRow }, function(position)
-        self.rootPosition = position
-    end)
+	refs.mainDragging = Dragging.attach(refs.root, { refs.commandRow }, function(position)
+		self.rootPosition = position
+	end)
 
-    refs.secondDragging = Dragging.attach(refs.secondRoot, { refs.secondCommandRow }, function(position)
-        self.secondRootPosition = position
-    end, function()
+	refs.secondDragging = Dragging.attach(refs.secondRoot, { refs.secondCommandRow }, function(position)
+		self.secondRootPosition = position
+	end, function()
+		detachSecond(self)
+	end)
 
-        detachSecond(self)
-    end)
+	track(refs.root:GetPropertyChangedSignal("Position"):Connect(function()
+		syncAttachedSecond(self)
+	end))
 
-    track(refs.root:GetPropertyChangedSignal("Position"):Connect(function()
-        syncAttachedSecond(self)
-    end))
+	track(refs.pillBtn.Activated:Connect(function()
+		self:expand()
+	end))
 
-    track(refs.pillBtn.Activated:Connect(function()
-        self:expand()
-    end))
+	track(refs.addChatPill.MouseEnter:Connect(function()
+		self:setAddChatHover(true)
+	end))
 
-    track(refs.addChatPill.MouseEnter:Connect(function()
+	track(refs.addChatPill.MouseLeave:Connect(function()
+		self:setAddChatHover(false)
+	end))
+	track(refs.addChatPill.Activated:Connect(function()
+		if self.hasSecondChat then
+			return
+		end
 
-        self:setAddChatHover(true)
-    end))
+		self:hideSuggestions()
 
-    track(refs.addChatPill.MouseLeave:Connect(function()
+		self.secondDetached = false
+		self.addChatHover = false
+		self.hasSecondChat = true
 
-        self:setAddChatHover(false)
-    end))
-    track(refs.addChatPill.Activated:Connect(function()
-        if self.hasSecondChat then
-            return
-        end
+		refs.secondRoot.Visible = true
+		refs.secondPill.Visible = true
 
-        self:hideSuggestions()
+		local secondPosition = Imports.Placement.attachedSecond(
+			refs.root.Position,
+			refs.root,
+			self:mainHeight(),
+			self.config.panel.stackGap or 8
+		)
 
-        self.secondDetached = false
-        self.addChatHover = false
-        self.hasSecondChat = true
+		refs.secondRoot.Position = secondPosition
+		refs.secondRoot.Size = refs.addChatPill.Size
 
-        refs.secondRoot.Visible = true
-        refs.secondPill.Visible = true
+		refs.secondPill.BackgroundTransparency = refs.addChatPill.BackgroundTransparency
+		refs.secondPill.Size = refs.addChatPill.Size
 
-        local secondPosition = imports.Placement.attachedSecond(
-            refs.root.Position,
-            refs.root,
-            self:mainHeight(),
-            self.config.panel.stackGap or 8
-        )
+		self.secondRootPosition = secondPosition
+		self.activeChannel = 2
 
-        refs.secondRoot.Position = secondPosition
-        refs.secondRoot.Size = refs.addChatPill.Size
+		refs.secondPill.Position = UDim2.new(0.5, 0, 1, 0)
 
+		setDraggingEnabled(self, true)
 
-        refs.secondPill.BackgroundTransparency = refs.addChatPill.BackgroundTransparency
-        refs.secondPill.Size = refs.addChatPill.Size
+		self:layoutStack(motion.openSmoothTime or motion.expandSmoothTime)
 
-        self.secondRootPosition = secondPosition
-        self.activeChannel = 2
+		task.defer(function()
+			self.placeholderVisible[2] = true
 
-        refs.secondPill.Position = UDim2.new(0.5, 0, 1, 0)
+			refs.SecondInputBox.Visible = true
+			refs.SecondInputBox.Text = ""
 
-        setDraggingEnabled(self, true)
+			refs.SecondInputBox:CaptureFocus()
+		end)
+	end))
 
-        self:layoutStack(motion.openSmoothTime or motion.expandSmoothTime)
+	for channel, input in { refs.InputBox, refs.SecondInputBox } do
+		track(input.Focused:Connect(function()
+			if self.activeChip and self.activeChip.channel == channel then
+				self:hideSuggestions()
+			end
 
-        task.defer(function()
-            self.placeholderVisible[2] = true
+			self:releaseActiveChip(channel)
+		end))
 
-            refs.SecondInputBox.Visible = true
-            refs.SecondInputBox.Text = ""
+		track(input.FocusLost:Connect(function(enterPressed)
+			if enterPressed then
+				self:submit(channel)
+			end
+		end))
 
-            refs.SecondInputBox:CaptureFocus()
-        end)
-    end))
+		track(bindText(self, input, channel))
+	end
 
-    for channel, input in { refs.InputBox, refs.SecondInputBox } do
-        track(input.Focused:Connect(function()
-            self:releaseActiveChip(channel)
-        end))
+	for _, pair in
+		{
+			{ refs.pillShadow, refs.pill },
+			{ refs.suggShadow, refs.suggList },
 
-        track(input.FocusLost:Connect(function(enterPressed)
-            if enterPressed then
-                self:submit(channel)
-            end
-        end))
+			{ refs.stackShadow, refs.addChatPill },
+			{ refs.secondShadow, refs.secondPill },
+		}
+	do
+		local shadow, target = pair[1], pair[2]
 
-        track(bindText(self, input, channel))
-    end
+		View.setShadowBounds(shadow, target)
 
-    for _, pair in {
-        { refs.pillShadow, refs.pill },
-        { refs.suggShadow, refs.suggList },
-        { refs.stackShadow, refs.addChatPill },
-        { refs.secondShadow, refs.secondPill },
-    } do
-        local shadow, target = pair[1], pair[2]
+		for _, property in { "Position", "Size" } do
+			track(target:GetPropertyChangedSignal(property):Connect(function()
+				View.setShadowBounds(shadow, target)
+			end))
+		end
+	end
 
-        View.setShadowBounds(shadow, target)
+	for channel, row in { refs.commandRow, refs.secondCommandRow } do
+		track(row:GetPropertyChangedSignal("CanvasPosition"):Connect(function()
+			if self.syncingScroll[channel] or Scroll.animating(row) then
+				return
+			end
 
-        for _, property in { "Position", "Size" } do
-            track(target:GetPropertyChangedSignal(property):Connect(function()
-                View.setShadowBounds(shadow, target)
-            end))
-        end
-    end
+			self.savedScroll[channel] = row.CanvasPosition.Y
+			self.autoScroll[channel] = false
 
-    for channel, row in { refs.commandRow, refs.secondCommandRow } do
+			self:renderHistory(channel)
 
-        track(row:GetPropertyChangedSignal("CanvasPosition"):Connect(function()
-            if self.syncingScroll[channel] or Scroll.animating(row) then
-                return
-            end
+			self:queueVisibleWidthRefresh(channel)
+		end))
+	end
 
-            self.savedScroll[channel] = row.CanvasPosition.Y
-            self.autoScroll[channel] = false
+	track(bindInput(self))
+	track(UserInputService.InputEnded:Connect(function(input)
+		if input.KeyCode == Enum.KeyCode.Backspace then
+			self.clearedArgument = nil
+		end
+	end))
 
-            self:renderHistory(channel)
-
-            self:queueVisibleWidthRefresh(channel)
-        end))
-    end
-
-    track(bindInput(self))
-
-    track(userInputService.InputChanged:Connect(function(input)
-        scrollHistory(self, input)
-    end))
+	track(UserInputService.InputChanged:Connect(function(input)
+		scrollHistory(self, input)
+	end))
 end
 
 local function baseState(config)
-    return {
-        connections = {},
-        config = config,
-        refs = {},
+	return {
+		refs = ({} :: any) :: Refs,
+		config = config,
 
-        suggestionSource = {},
-        hintConnections = {},
-        channelChips = {},
-        argSchemas = {},
+		suggestionSource = {},
+		hintConnections = {},
+		channelChips = {},
 
-        commandWord = {},
-        activeChip = nil,
-        structured = {},
+		commandWord = {},
+		connections = {},
+		argSchemas = {},
 
-        hintToken = 0,
-        hintKey = {},
+		structured = {},
+		hintKey = {},
 
-        historyDirty = { true, true },
-        commandHistory = { {}, {} },
-        commandHistoryIndex = {},
+		hintToken = 0,
 
-        measuredLineHeight = nil,
-        recallingCommand = {},
-        renderedVersion = {},
+		activeChip = nil,
+		clearedArgument = nil,
+		historyDirty = { true, true },
+		commandHistory = { {}, {} },
+		commandHistoryIndex = {},
 
-        historyVersion = {},
-        secondHistory = {},
-        commandDraft = {},
+		measuredLineHeight = nil,
+		recallingCommand = {},
+		renderedVersion = {},
 
-        lineCache = {},
-        history = {},
+		historyVersion = {},
+		secondHistory = {},
+		commandDraft = {},
 
-        hasSecondOutput = false,
-        secondClosingToAdd = false,
-        secondDetached = false,
-        hasSecondChat = false,
-        isDestroying = false,
+		lineCache = {},
+		history = {},
 
-        isExpanded = false,
-        hasOutput = false,
-        isClosing = false,
-        activeChannel = 1,
+		hasSecondOutput = false,
+		secondClosingToAdd = false,
+		secondDetached = false,
+		hasSecondChat = false,
+		isDestroying = false,
 
-        suggestionConnections = {},
-        currentSuggestions = {},
-        selectedSuggestion = nil,
+		isExpanded = false,
+		hasOutput = false,
+		isClosing = false,
+		activeChannel = 1,
 
-        suggestionsHiding = false,
-        suggestionQuery = "",
-        suggestToken = 0,
+		suggestionConnections = {},
+		currentSuggestions = {},
+		selectedSuggestion = nil,
 
-        placeholderVisible = { false, false },
-        autoScroll = { true, true },
-        savedScroll = { 0, 0 },
+		suggestionsHiding = false,
+		suggestionQuery = "",
+		suggestToken = 0,
 
-        refreshMeasuredToken = {},
-        scrollSyncToken = {},
-        syncingScroll = {},
+		placeholderVisible = { false, false },
+		autoScroll = { true, true },
+		savedScroll = { 0, 0 },
 
-        layoutTargetWidth = nil,
-        secondLayoutTargetWidth = nil,
-        secondRootPosition = nil,
-        rootPosition = nil,
+		refreshMeasuredToken = {},
+		scrollSyncToken = {},
+		syncingScroll = {},
 
-        secondShadowHiding = false,
-        stackShadowHiding = false,
-        widthRefreshToken = 0,
-        secondWidthRefreshToken = 0,
+		layoutTargetWidth = nil,
+		secondLayoutTargetWidth = nil,
+		secondRootPosition = nil,
+		rootPosition = nil,
 
-        addChatHover = false,
-        restoredWidth = nil,
-        queuedWidth = nil,
-        secondQueuedWidth = nil,
-        layoutSeq = 0,
+		secondShadowHiding = false,
+		stackShadowHiding = false,
+		widthRefreshToken = 0,
+		secondWidthRefreshToken = 0,
 
-        onCloseRequest = nil,
-        onSubmit = nil,
-    }
+		addChatHover = false,
+		restoredWidth = nil,
+		queuedWidth = nil,
+		secondQueuedWidth = nil,
+		layoutSeq = 0,
+
+		onCloseRequest = nil,
+		onSubmit = nil,
+	}
 end
 
 local function append(self, channel, item)
-    channel = ch(channel)
+	channel = ch(channel)
 
-    if channel == 2 then
-        if not self.hasSecondChat then
-            
-            self.secondDetached = false
-            self.hasSecondChat = true
+	if channel == 2 then
+		if not self.hasSecondChat then
+			self.secondDetached = false
+			self.hasSecondChat = true
 
-            syncAttachedSecond(self)
-        end
+			syncAttachedSecond(self)
+		end
 
-        self.hasSecondOutput = true
-    else
-        self.hasOutput = true
-    end
+		self.hasSecondOutput = true
+	else
+		self.hasOutput = true
+	end
 
-    self.autoScroll[channel] = true
+	self.autoScroll[channel] = true
 
-    History.append(channel == 2 and self.secondHistory or self.history, item)
+	History.append(channel == 2 and self.secondHistory or self.history, item)
 
-    self:markHistoryDirty(channel)
+	self:markHistoryDirty(channel)
 
-    if channel == 2 and self.secondDetached then
-        Shape.layoutDetachedSecond(self, self.config.motion.outputSmoothTime)
-    else
-        self:layoutStack(self.config.motion.outputSmoothTime)
-    end
+	if channel == 2 and self.secondDetached then
+		Shape.layoutDetachedSecond(self, self.config.motion.outputSmoothTime)
+	else
+		self:layoutStack(self.config.motion.outputSmoothTime)
+	end
 
-    task.defer(function()
-        if self.refs then
-            Slide.history(self, channel)
-        end
-    end)
+	task.defer(function()
+		if self.refs then
+			Slide.history(self, channel)
+		end
+	end)
 
-    self:refreshMeasured(channel)
+	self:refreshMeasured(channel)
 
-    self:queueVisibleWidthRefresh(channel)
+	self:queueVisibleWidthRefresh(channel)
 end
 
 --// public api
 local Session = {}
 Session.__index = Session
 
-imports.Suggestions.attach(Session)
-imports.Panel.attach(Session)
-imports.Hints.attach(Session)
+Imports.Suggestions.attach(Session)
+Imports.Panel.attach(Session)
+Imports.Hints.attach(Session)
 
 function Session.new(gui, config, rootPosition, secondRootPosition)
-    if typeof(gui) ~= "Instance" then
-        return nil
-    end
+	if typeof(gui) ~= "Instance" then
+		return nil
+	end
 
-    local self = setmetatable(baseState(config), Session)
+	local self = setmetatable(baseState(config), Session)
 
-    if typeof(rootPosition) == "UDim2" then
-        self.rootPosition = rootPosition
-    end
+	if typeof(rootPosition) == "UDim2" then
+		self.rootPosition = rootPosition
+	end
 
-    if typeof(secondRootPosition) == "UDim2" then
-        self.secondRootPosition = secondRootPosition
-    end
+	if typeof(secondRootPosition) == "UDim2" then
+		self.secondRootPosition = secondRootPosition
+	end
 
-    View.createTree(self, gui)
-    bindRefs(self)
+	View.createTree(self, gui)
+	bindRefs(self)
 
-    Reveal.prepare(self)
+	Reveal.prepare(self)
 
-    task.defer(function()
-        Reveal.open(self)
+	task.defer(function()
+		Reveal.open(self)
 
-        self.placeholderVisible[1] = self.refs.InputBox.Text == ""
-        self:updateShadows()
+		self.placeholderVisible[1] = self.refs.InputBox.Text == ""
+		self:updateShadows()
 
-        task.delay(self.config.motion.openSmoothTime or self.config.motion.expandSmoothTime, function()
-            if self.isDestroying or not self.refs then
-                return
-            end
+		task.delay(self.config.motion.openSmoothTime or self.config.motion.expandSmoothTime, function()
+			if self.isDestroying or not self.refs then
+				return
+			end
 
-            setDraggingEnabled(self, true)
-        end)
-    end)
+			setDraggingEnabled(self, true)
+		end)
+	end)
 
-    return self
+	return self
 end
 
 function Session:activeInput()
-    local chip = if Text.callable(self.focusedChip) then self:focusedChip() else self.activeChip
+	local chip = if Text.callable(self.focusedChip) then self:focusedChip() else self.activeChip
 
-    if chip and chip.channel == self.activeChannel and typeof(chip.box) == "Instance" and chip.box.Parent then
-        return chip.box
-    end
+	if
+		chip
+		and chip.channel == self.activeChannel
+		and typeof(chip.box) == "Instance"
+		and chip.box:IsA("TextBox")
+		and chip.box.Parent
+	then
+		return chip.box
+	end
 
-    return mainBox(self, self.activeChannel)
+	return mainBox(self, self.activeChannel)
 end
 
 function Session:bindSubmit(fn)
-    self.onSubmit = Text.callable(fn) and fn or nil
+	self.onSubmit = Text.callable(fn) and fn or nil
 end
 
 function Session:bindCloseRequest(fn)
-    self.onCloseRequest = Text.callable(fn) and fn or nil
+	self.onCloseRequest = Text.callable(fn) and fn or nil
 end
 
 function Session:setSuggestions(list)
-    local seen = {}
-    local out = {}
+	local seen = {}
+	local out = {}
 
-    local function push(value)
-        local text = tostring(value or "")
+	local function push(value)
+		local text = tostring(value or "")
 
-        if text == "" or seen[text] then
-            return
-        end
+		if text == "" or seen[text] then
+			return
+		end
 
-        seen[text] = true
+		seen[text] = true
 
-        table.insert(out, text)
-    end
+		table.insert(out, text)
+	end
 
-    for _, item in type(list) == "table" and list or {} do
-        push(item)
-    end
+	for _, item in type(list) == "table" and list or {} do
+		push(item)
+	end
 
-    for alias, target in self.config.commands.aliases or {} do
-        push(target)
-        push(alias)
-    end
+	for alias, target in self.config.commands.aliases or {} do
+		push(target)
+		push(alias)
+	end
 
-    table.sort(out)
-    self.suggestionSource = out
+	table.sort(out)
+	self.suggestionSource = out
 end
 
 function Session:setPlaceholder(channel, visible)
-    channel = ch(channel)
+	channel = ch(channel)
 
-    local label = placeholder(self, channel)
+	local label = placeholder(self, channel)
 
-    if typeof(label) ~= "Instance" or self.placeholderVisible[channel] == visible then
-        return
-    end
+	if not label or self.placeholderVisible[channel] == visible then
+		return
+	end
 
-    self.placeholderVisible[channel] = visible
+	self.placeholderVisible[channel] = visible
 
-    if not visible then
-        label.TextTransparency = 1
+	if not visible then
+		label.TextTransparency = 1
 
-        label.Visible = false
-        return
-    end
+		label.Visible = false
+		return
+	end
 
-    Suggest.placeholder(self, label, visible)
+	Suggest.placeholder(self, label, visible)
 end
 
 function Session:pushCommandHistory(channel, text)
-    channel = ch(channel)
-    text = tostring(text or "")
+	channel = ch(channel)
+	text = tostring(text or "")
 
-    if text == "" then
-        return
-    end
+	if text == "" then
+		return
+	end
 
-    local list = self.commandHistory[channel]
-    if type(list) ~= "table" then
+	local list = self.commandHistory[channel]
+	if type(list) ~= "table" then
+		list = {}
+		self.commandHistory[channel] = list
+	end
 
-        list = {}
-        self.commandHistory[channel] = list
+	if list[#list] ~= text then
+		table.insert(list, text)
+	end
 
-    end
-
-    if list[#list] ~= text then
-        table.insert(list, text)
-    end
-
-    self.commandHistoryIndex[channel] = nil
-    self.commandDraft[channel] = nil
+	self.commandHistoryIndex[channel] = nil
+	self.commandDraft[channel] = nil
 end
 
 function Session:recallCommand(delta)
-    local channel = ch(self.activeChannel)
+	local channel = ch(self.activeChannel)
 
-    if self.activeChip and self.activeChip.channel then
-        channel = ch(self.activeChip.channel)
-    end
+	if self.activeChip and self.activeChip.channel then
+		channel = ch(self.activeChip.channel)
+	end
 
-    if self.structured[channel] then
-        return false
-    end
+	if self.structured[channel] then
+		return false
+	end
 
-    local chipFocused = self.activeChip and self.activeChip.channel == channel
-    local input = mainBox(self, channel)
+	local chipFocused = self.activeChip and self.activeChip.channel == channel
+	local input = mainBox(self, channel)
 
-    if typeof(input) ~= "Instance" or (not input:IsFocused() and not chipFocused) then
-        return false
-    end
+	if not input or (not input:IsFocused() and not chipFocused) then
+		return false
+	end
 
-    local list = self.commandHistory[channel]
+	local list = self.commandHistory[channel]
 
-    if type(list) ~= "table" or #list == 0 then
-        return false
-    end
+	if type(list) ~= "table" or #list == 0 then
+		return false
+	end
 
-    local index = self.commandHistoryIndex[channel]
+	local index = self.commandHistoryIndex[channel]
 
-    if index == nil then
-        if delta > 0 then
-            return false
-        end
+	if index == nil then
+		if delta > 0 then
+			return false
+		end
 
-        self.commandDraft[channel] = self:assembleCommand(channel)
-        index = #list
+		self.commandDraft[channel] = self:assembleCommand(channel)
+		index = #list
+	elseif delta < 0 then
+		index = math.max(1, index - 1)
+	else
+		index += 1
 
-    elseif delta < 0 then
-        index = math.max(1, index - 1)
-    else
-        index += 1
+		if index > #list then
+			self.commandHistoryIndex[channel] = nil
 
-        if index > #list then
-            self.commandHistoryIndex[channel] = nil
+			setRecall(self, channel, input, tostring(self.commandDraft[channel] or ""))
+			return true
+		end
+	end
+	self.commandHistoryIndex[channel] = index
 
-            setRecall(self, channel, input, tostring(self.commandDraft[channel] or ""))
-            return true
-        end
-    end
-    self.commandHistoryIndex[channel] = index
+	setRecall(self, channel, input, list[index])
 
-    setRecall(self, channel, input, list[index])
-
-    return true
+	return true
 end
 
 function Session:submit(channel)
-    channel = ch(channel)
+	channel = ch(channel)
 
-    local input = mainBox(self, channel)
+	local input = mainBox(self, channel)
 
-    if typeof(input) ~= "Instance" then
-        return
-    end
+	if not input then
+		return
+	end
 
-    local text = Text.trim(self:assembleCommand(channel))
+	local text = Text.trim(self:assembleCommand(channel))
 
-    if text == "" then
-        return
-    end
+	if text == "" then
+		return
+	end
 
-    self:pushCommandHistory(channel, text)
+	self:pushCommandHistory(channel, text)
 
-    input.Text = ""
+	input.Text = ""
 
-    self:setPlaceholder(channel, true)
-    self:exitStructured(channel)
-    self:hideHints(channel)
+	self:setPlaceholder(channel, true)
+	self:exitStructured(channel)
+	self:hideHints(channel)
 
-    self:hideSuggestions()
+	self:hideSuggestions()
 
-    if Text.callable(self.onSubmit) then
-        self.onSubmit(text, channel)
-    end
+	if Text.callable(self.onSubmit) then
+		self.onSubmit(text, channel)
+	end
 
-    task.defer(function()
-        if typeof(input) == "Instance" then
-            input:CaptureFocus()
-        end
-    end)
+	task.defer(function()
+		if input.Parent then
+			input:CaptureFocus()
+		end
+	end)
 end
 
 function Session:expand()
-    if self.isExpanded or self.isClosing then
-        return
-    end
-    
-    self.refs.pillBtn.Visible = false
-    self.isClosing = false
+	if self.isExpanded or self.isClosing then
+		return
+	end
 
-    self.refs.InputBox.Visible = true
-    self.isExpanded = true
-    
+	self.refs.pillBtn.Visible = false
+	self.isClosing = false
 
-    if not self.hasSecondChat then
-        self.activeChannel = 1
-    end
+	self.refs.InputBox.Visible = true
+	self.isExpanded = true
 
-    local duration = self.config.motion.expandSmoothTime
-    local rootPosition = typeof(self.rootPosition) == "UDim2" and self.rootPosition or self.refs.root.Position
+	if not self.hasSecondChat then
+		self.activeChannel = 1
+	end
 
-    Tween.to(self.refs.root, { Position = rootPosition }, duration)
+	local activeChannel = ch(self.activeChannel)
+	local firstChannel = activeChannel == 1 and 2 or 1
 
-    if self.hasSecondChat then
-        local secondPosition = self.secondDetached
-                and (typeof(self.secondRootPosition) == "UDim2" and self.secondRootPosition or self.refs.secondRoot.Position)
-            or imports.Placement.attachedSecond(
-                rootPosition,
-                self.refs.root,
-                self:mainHeight(),
-                self.config.panel.stackGap or 8
-            )
+	for _, channel in { firstChannel, activeChannel } do
+		if channel == 1 or self.hasSecondChat then
+			local input = mainBox(self, channel)
 
-        self.secondRootPosition = secondPosition
+			if input and input.Text ~= "" then
+				self.activeChannel = channel
+				self:onCommandText(channel, input.Text)
+			end
+		end
+	end
 
-        Tween.to(self.refs.secondRoot, { Position = secondPosition }, duration)
-    end
+	self.activeChannel = activeChannel
 
-    Shape.expand(self)
+	local duration = self.config.motion.expandSmoothTime
+	local rootPosition = typeof(self.rootPosition) == "UDim2" and self.rootPosition or self.refs.root.Position
 
-    if self.secondDetached and self.hasSecondChat then
-        Shape.layoutDetachedSecond(self, duration, self:activeWidth(2))
-    end
+	Tween.to(self.refs.root, { Position = rootPosition }, duration)
 
-    task.defer(function()
-        local input = self:activeInput()
+	if self.hasSecondChat then
+		local secondPosition = self.secondDetached
+				and (typeof(self.secondRootPosition) == "UDim2" and self.secondRootPosition or self.refs.secondRoot.Position)
+			or Imports.Placement.attachedSecond(
+				rootPosition,
+				self.refs.root,
+				self:mainHeight(),
+				self.config.panel.stackGap or 8
+			)
 
-        if typeof(input) == "Instance" then
+		self.secondRootPosition = secondPosition
 
-            input.Visible = true
-            input:CaptureFocus()
-        end
-    end)
+		Tween.to(self.refs.secondRoot, { Position = secondPosition }, duration)
+	end
+
+	Shape.expand(self)
+
+	if self.secondDetached and self.hasSecondChat then
+		Shape.layoutDetachedSecond(self, duration, self:activeWidth(2))
+	end
+
+	task.defer(function()
+		local input = self:activeInput()
+
+		if input then
+			input.Visible = true
+			input:CaptureFocus()
+		end
+	end)
 end
 
 function Session:collapse()
-    if not self.isExpanded then
-        return
-    end
+	if not self.isExpanded then
+		return
+	end
 
-    self.secondClosingToAdd = false
-    self.isExpanded = false
-    self.isClosing = true
+	self.secondClosingToAdd = false
+	self.isExpanded = false
+	self.isClosing = true
 
-    self:hideSuggestions()
-    self:saveScroll()
-    self:hideHints()
+	local activeChannel = ch(self.activeChannel)
 
-    local input = self.refs.InputBox
-    local empty = input.Text == ""
+	for channel = 1, 2 do
+		if self.structured[channel] then
+			local input = mainBox(self, channel)
+			local text = self:assembleCommand(channel)
+			local active = self.activeChip
 
-    input.Visible = not empty
+			if
+				text == (self.commandWord[channel] or "")
+				or (active and active.channel == channel and active.box.Text == "")
+			then
+				text ..= " "
+			end
 
-    self:setPlaceholder(1, empty)
-    Shape.collapse(self)
+			self:exitStructured(channel)
 
-    task.delay(self.config.motion.collapseSmoothTime, function()
-        if not self.isExpanded and typeof(self.refs.pillBtn) == "Instance" then
+			if input then
+				input.Text = text
+				input.CursorPosition = #text + 1
+			end
+		end
+	end
 
-            self.refs.pillBtn.Visible = true
-            self.isClosing = false
-        end
-    end)
+	self.activeChannel = activeChannel
+
+	self:hideSuggestions()
+	self:saveScroll()
+	self:hideHints()
+
+	local input = self.refs.InputBox
+	local empty = input.Text == ""
+
+	input.Visible = not empty
+
+	self:setPlaceholder(1, empty)
+	Shape.collapse(self)
+
+	task.delay(self.config.motion.collapseSmoothTime, function()
+		if
+			not self.isExpanded
+			and typeof(self.refs.pillBtn) == "Instance"
+			and self.refs.pillBtn:IsA("TextButton")
+		then
+			self.refs.pillBtn.Visible = true
+			self.isClosing = false
+		end
+	end)
 end
 
 function Session:focus()
-    task.defer(function()
-        if self.refs then
-            self:expand()
-        end
-    end)
+	task.defer(function()
+		if self.refs then
+			self:expand()
+		end
+	end)
 end
 
 function Session:getCursorTarget()
-    local input = self:activeInput()
+	local input = self:activeInput()
 
-    if typeof(input) == "Instance" and input.Parent and input.Visible then
-        return input
-    end
+	if input and input.Parent and input.Visible then
+		return input
+	end
 
-    if typeof(self.refs.pillBtn) == "Instance" and self.refs.pillBtn.Parent then
-        return self.refs.pillBtn
-    end
+	if
+		typeof(self.refs.pillBtn) == "Instance"
+		and self.refs.pillBtn:IsA("TextButton")
+		and self.refs.pillBtn.Parent
+	then
+		return self.refs.pillBtn
+	end
 
-    return nil
+	return nil
 end
 
 function Session:clear(channel)
-    if channel == nil then
-        self.renderedVersion = {}
-        self.secondHistory = {}
-        self.lineCache = {}
-        self.history = {}
-        
-        self.hasSecondOutput = false
-        self.secondDetached = false
-        self.hasSecondChat = false
-        self.hasOutput = false
-       
-        self.secondLayoutTargetWidth = nil
-        self.secondQueuedWidth = nil
-        
-        self.autoScroll = { true, true }
-        self.savedScroll = { 0, 0 }
+	if channel == nil then
+		self.renderedVersion = {}
+		self.secondHistory = {}
+		self.lineCache = {}
+		self.history = {}
 
-        self:markHistoryDirty(1)
-        self:markHistoryDirty(2)
+		self.hasSecondOutput = false
+		self.secondDetached = false
+		self.hasSecondChat = false
+		self.hasOutput = false
 
-        self:exitStructured(1)
-        self:exitStructured(2)
+		self.secondLayoutTargetWidth = nil
+		self.secondQueuedWidth = nil
 
-        self.activeChannel = 1
+		self.autoScroll = { true, true }
+		self.savedScroll = { 0, 0 }
 
-        setDraggingEnabled(self, true)
+		self:markHistoryDirty(1)
+		self:markHistoryDirty(2)
 
-        self:layoutStack(self.config.motion.collapseSmoothTime or self.config.motion.outputSmoothTime)
-        return
-    end
+		self:exitStructured(1)
+		self:exitStructured(2)
 
-    channel = ch(channel)
+		self.activeChannel = 1
 
-    if channel == 2 then
-        self.secondHistory = {}
-        self.hasSecondOutput = false
+		setDraggingEnabled(self, true)
 
-    else
-        self.history = {}
-        self.hasOutput = false
+		self:layoutStack(self.config.motion.collapseSmoothTime or self.config.motion.outputSmoothTime)
+		return
+	end
 
-        if not self.hasSecondOutput then
-            self.hasSecondChat = false
-            self.secondDetached = false
-        end
-    end
+	channel = ch(channel)
 
-    self.renderedVersion = {}
-    self.lineCache = {}
+	if channel == 2 then
+		self.secondHistory = {}
+		self.hasSecondOutput = false
+	else
+		self.history = {}
+		self.hasOutput = false
 
-    self.autoScroll[channel] = true
-    self.savedScroll[channel] = 0
+		if not self.hasSecondOutput then
+			self.hasSecondChat = false
+			self.secondDetached = false
+		end
+	end
 
-    self:markHistoryDirty(channel)
-    self:renderHistory(channel)
+	self.renderedVersion = {}
+	self.lineCache = {}
 
-    self:exitStructured(channel)
-    self.activeChannel = channel
+	self.autoScroll[channel] = true
+	self.savedScroll[channel] = 0
 
-    setDraggingEnabled(self, true)
+	self:markHistoryDirty(channel)
+	self:renderHistory(channel)
 
-    local duration = self.config.motion.collapseSmoothTime or self.config.motion.outputSmoothTime
+	self:exitStructured(channel)
+	self.activeChannel = channel
 
-    if channel == 2 and self.secondDetached then
-        Shape.layoutDetachedSecond(self, duration)
-    else
-        self:layoutStack(duration)
-    end
+	setDraggingEnabled(self, true)
+
+	local duration = self.config.motion.collapseSmoothTime or self.config.motion.outputSmoothTime
+
+	if channel == 2 and self.secondDetached then
+		Shape.layoutDetachedSecond(self, duration)
+	else
+		self:layoutStack(duration)
+	end
 end
 
 function Session:closeSecond()
-    local wasDetached = self.secondDetached
-    local mainPosition = self.refs.root.Position
+	local wasDetached = self.secondDetached
+	local mainPosition = self.refs.root.Position
 
-    self.commandHistory[2] = {}
-    self.secondHistory = {}
+	self.commandHistory[2] = {}
+	self.secondHistory = {}
 
-    self.secondClosingToAdd = self.isExpanded and self.hasOutput
-    self.hasSecondOutput = false
-    self.secondDetached = false
-    self.hasSecondChat = false
-    
-    self.secondLayoutTargetWidth = nil
-    self.secondQueuedWidth = nil
+	self.secondClosingToAdd = self.isExpanded and self.hasOutput
+	self.hasSecondOutput = false
+	self.secondDetached = false
+	self.hasSecondChat = false
 
-    self.commandHistoryIndex[2] = nil
-    self.renderedVersion[2] = nil
-    self.commandDraft[2] = nil
-    self.lineCache[2] = nil
+	self.secondLayoutTargetWidth = nil
+	self.secondQueuedWidth = nil
 
-    self.autoScroll[2] = true
-    self.savedScroll[2] = 0
+	self.commandHistoryIndex[2] = nil
+	self.renderedVersion[2] = nil
+	self.commandDraft[2] = nil
+	self.lineCache[2] = nil
 
-    self.activeChannel = 1
+	self.autoScroll[2] = true
+	self.savedScroll[2] = 0
 
-    self:markHistoryDirty(2)
-    self:exitStructured(2)
-    self:renderHistory(2)
+	self.activeChannel = 1
 
-    self:hideSuggestions()
-    self:hideHints(2)
+	self:markHistoryDirty(2)
+	self:exitStructured(2)
+	self:renderHistory(2)
 
-    if wasDetached then
-        attachAddChat(self, mainPosition)
-    end
+	self:hideSuggestions()
+	self:hideHints(2)
 
-    setDraggingEnabled(self, true)
+	if wasDetached then
+		attachAddChat(self, mainPosition)
+	end
 
-    self:layoutStack(self.config.motion.collapseSmoothTime or self.config.motion.outputSmoothTime)
+	setDraggingEnabled(self, true)
+
+	self:layoutStack(self.config.motion.collapseSmoothTime or self.config.motion.outputSmoothTime)
 end
 
 function Session:snapshot()
-    return {
-        secondHistory = copyHistory(self.secondHistory),
-        commandHistory = {
-            table.clone(self.commandHistory[1] or {}),
-            table.clone(self.commandHistory[2] or {}),
-        },
-        history = copyHistory(self.history),
+	local input = mainBox(self, 1)
+	local secondInput = mainBox(self, 2)
 
-        hasSecondOutput = self.hasSecondOutput == true,
-        secondDetached = self.secondDetached == true,
-        hasSecondChat = self.hasSecondChat == true,
+	local function inputText(channel, box)
+		if not box then
+			return ""
+		end
 
-        activeChannel = ch(self.activeChannel),
-        hasOutput = self.hasOutput == true,
+		if not self.structured[channel] then
+			return box.Text
+		end
 
-        autoScroll = { self.autoScroll[1] ~= false, self.autoScroll[2] ~= false },
-        secondPosition = self.secondRootPosition,
-        position = self.rootPosition,
+		local text = self:assembleCommand(channel)
+		local active = self.activeChip
 
-        inputText = {
-            typeof(self.refs.InputBox) == "Instance" and self.refs.InputBox.Text or "",
-            typeof(self.refs.SecondInputBox) == "Instance" and self.refs.SecondInputBox.Text or "",
-        },
+		if
+			text == (self.commandWord[channel] or "")
+			or (active and active.channel == channel and active.box.Text == "")
+		then
+			text ..= " "
+		end
 
-        width = self.layoutTargetWidth or self.restoredWidth or self:activeWidth(),
-        scroll = { self.savedScroll[1] or 0, self.savedScroll[2] or 0 },
-    }
+		return text
+	end
+
+	return {
+		secondHistory = copyHistory(self.secondHistory),
+		commandHistory = {
+			table.clone(self.commandHistory[1] or {}),
+			table.clone(self.commandHistory[2] or {}),
+		},
+		history = copyHistory(self.history),
+
+		hasSecondOutput = self.hasSecondOutput == true,
+		secondDetached = self.secondDetached == true,
+		hasSecondChat = self.hasSecondChat == true,
+
+		activeChannel = ch(self.activeChannel),
+		hasOutput = self.hasOutput == true,
+
+		autoScroll = { self.autoScroll[1] ~= false, self.autoScroll[2] ~= false },
+		secondPosition = self.secondRootPosition,
+		position = self.rootPosition,
+
+		inputText = {
+			inputText(1, input),
+			inputText(2, secondInput),
+		},
+
+		width = self.layoutTargetWidth or self.restoredWidth or self:activeWidth(),
+		scroll = { self.savedScroll[1] or 0, self.savedScroll[2] or 0 },
+	}
 end
 
 function Session:restoreSnapshot(data)
-    if type(data) ~= "table" then
-        return
-    end
+	if type(data) ~= "table" then
+		return
+	end
 
-    self.history = copyHistory(data.history)
-    self.secondHistory = copyHistory(data.secondHistory)
+	self.history = copyHistory(data.history)
+	self.secondHistory = copyHistory(data.secondHistory)
 
-    self.commandHistory = type(data.commandHistory) == "table"
-        and {
-            table.clone(data.commandHistory[1] or {}),
-            table.clone(data.commandHistory[2] or {}),
-        }
-        or { {}, {} }
+	self.commandHistory = type(data.commandHistory) == "table"
+			and {
+				table.clone(data.commandHistory[1] or {}),
+				table.clone(data.commandHistory[2] or {}),
+			}
+		or { {}, {} }
 
-    self.commandHistoryIndex = {}
-    self.commandDraft = {}
+	self.commandHistoryIndex = {}
+	self.commandDraft = {}
 
-    self.hasOutput = data.hasOutput == true or #self.history > 0
+	self.hasOutput = data.hasOutput == true or #self.history > 0
 
-    self.hasSecondChat = data.hasSecondChat == true or #self.secondHistory > 0
-    self.hasSecondOutput = data.hasSecondOutput == true or #self.secondHistory > 0
+	self.hasSecondChat = data.hasSecondChat == true or #self.secondHistory > 0
+	self.hasSecondOutput = data.hasSecondOutput == true or #self.secondHistory > 0
 
-    self.secondDetached = if type(data.secondDetached) == "boolean" then data.secondDetached else self.hasSecondChat
-    self.activeChannel = ch(data.activeChannel)
+	self.secondDetached = if type(data.secondDetached) == "boolean" then data.secondDetached else self.hasSecondChat
+	self.activeChannel = ch(data.activeChannel)
 
-    self.autoScroll = type(data.autoScroll) == "table"
-        and {
-            data.autoScroll[1] ~= false,
-            data.autoScroll[2] ~= false,
-        }
-        or { true, true }
+	self.autoScroll = type(data.autoScroll) == "table"
+			and {
+				data.autoScroll[1] ~= false,
+				data.autoScroll[2] ~= false,
+			}
+		or { true, true }
 
-    self.savedScroll = type(data.scroll) == "table"
-        and {
-            tonumber(data.scroll[1]) or 0,
-            tonumber(data.scroll[2]) or 0,
-        }
-        or { 0, 0 }
+	self.savedScroll = type(data.scroll) == "table"
+			and {
+				tonumber(data.scroll[1]) or 0,
+				tonumber(data.scroll[2]) or 0,
+			}
+		or { 0, 0 }
 
-    self.restoredWidth = tonumber(data.width)
-    self.layoutTargetWidth = self.restoredWidth
+	self.restoredWidth = tonumber(data.width)
+	self.layoutTargetWidth = self.restoredWidth
 
-    if typeof(data.position) == "UDim2" then
-        self.rootPosition = data.position
-    end
+	if typeof(data.position) == "UDim2" then
+		self.rootPosition = data.position
+	end
 
-    if typeof(data.secondPosition) == "UDim2" then
-        self.secondRootPosition = data.secondPosition
-    end
+	if typeof(data.secondPosition) == "UDim2" then
+		self.secondRootPosition = data.secondPosition
+	end
 
-    if self.hasSecondChat and not self.secondDetached and typeof(self.rootPosition) == "UDim2" then
-        self.secondRootPosition = imports.Placement.attachedSecond(
-            self.rootPosition,
-            self.refs.root,
-            self:mainHeight(),
-            self.config.panel.stackGap or 8
-        )
-    end
+	if self.hasSecondChat and not self.secondDetached and typeof(self.rootPosition) == "UDim2" then
+		self.secondRootPosition = Imports.Placement.attachedSecond(
+			self.rootPosition,
+			self.refs.root,
+			self:mainHeight(),
+			self.config.panel.stackGap or 8
+		)
+	end
 
-    self.lineCache = {}
-    self.renderedVersion = {}
+	self.lineCache = {}
+	self.renderedVersion = {}
 
-    local inputText = type(data.inputText) == "table" and data.inputText or {}
+	local inputText = type(data.inputText) == "table" and data.inputText or {}
 
-    for channel = 1, 2 do
-        local input = mainBox(self, channel)
+	for channel = 1, 2 do
+		local input = mainBox(self, channel)
 
-        if typeof(input) == "Instance" then
-            input.Text = tostring(inputText[channel] or "")
+		if input then
+			input.Text = tostring(inputText[channel] or "")
 
-            self.placeholderVisible[channel] = nil
-            self:setPlaceholder(channel, input.Text == "")
-        end
-    end
+			self.placeholderVisible[channel] = nil
+			self:setPlaceholder(channel, input.Text == "")
+		end
+	end
 
-    self:markHistoryDirty(1)
+	self:markHistoryDirty(1)
 
-    self:markHistoryDirty(2)
+	self:markHistoryDirty(2)
 
-    if self.hasSecondChat and typeof(self.refs.SecondInputBox) == "Instance" then
-        self.refs.SecondInputBox.Visible = true
-    end
+	local secondInput = mainBox(self, 2)
+	if self.hasSecondChat and secondInput then
+		secondInput.Visible = true
+	end
 
-    task.defer(function()
-        if not self.refs then
-            return
-        end
+	task.defer(function()
+		if not self.refs then
+			return
+		end
 
-        self:renderHistory(1)
-        self:renderHistory(2)
+		self:renderHistory(1)
+		self:renderHistory(2)
 
-        task.defer(function()
-            self.restoredWidth = nil
+		task.defer(function()
+			self.restoredWidth = nil
 
-            self:queueWidthRefresh()
+			self:queueWidthRefresh()
 
-            if self.secondDetached then
-                self:queueWidthRefresh(2)
-            end
-        end)
-    end)
+			if self.secondDetached then
+				self:queueWidthRefresh(2)
+			end
+		end)
+	end)
 end
 
 function Session:appendPending(text, channel)
-    append(self, channel, {
-        text = tostring(text or ""),
-        kind = "cmd",
-    })
+	append(self, channel, {
+		text = tostring(text or ""),
+		kind = "cmd",
+	})
 end
 
 function Session:appendResult(result, channel)
-    append(self, channel, {
-        wide = type(result) == "table" and result.width == "wide",
+	append(self, channel, {
+		wide = type(result) == "table" and result.width == "wide",
 
-        kind = History.resultKind(result),
-        text = History.resultText(result),
-    })
+		kind = History.resultKind(result),
+		text = History.resultText(result),
+	})
 end
 
 function Session:destroy()
+	self.stackShadowHiding = true
+	self.isDestroying = true
+	self.isClosing = true
 
-    self.stackShadowHiding = true
-    self.isDestroying = true
-    self.isClosing = true
+	self.isExpanded = false
 
-    self.isExpanded = false
+	self.layoutSeq += 1
+	self.widthRefreshToken += 1
+	self.secondWidthRefreshToken += 1
 
-    self.layoutSeq += 1
-    self.widthRefreshToken += 1
-    self.secondWidthRefreshToken += 1
+	self:hideSuggestions()
 
-    self:hideSuggestions()
+	View.clearSuggestionConnections(self)
 
-    View.clearSuggestionConnections(self)
+	setDraggingEnabled(self, false)
 
-    setDraggingEnabled(self, false)
+	for _, input in { self.refs.InputBox, self.refs.SecondInputBox } do
+		if typeof(input) == "Instance" and input:IsA("TextBox") then
+			input:ReleaseFocus()
+		end
+	end
 
-    for _, input in { self.refs.InputBox, self.refs.SecondInputBox } do
-        if typeof(input) == "Instance" then
+	local delay = Reveal.close(self)
 
-            input:ReleaseFocus()
-        end
-    end
+	task.delay(delay, function()
+		View.clearSuggestionConnections(self)
 
-    local delay = Reveal.close(self)
+		for _, conn in self.connections do
+			if conn and conn.Connected then
+				conn:Disconnect()
+			end
+		end
 
-    task.delay(delay, function()
-        View.clearSuggestionConnections(self)
+		self.connections = {}
 
-        for _, conn in self.connections do
-            if conn and conn.Connected then
-                conn:Disconnect()
-            end
-        end
+		if self.refs.root then
+			self.refs.root:Destroy()
+		end
 
-        self.connections = {}
-
-        if self.refs.root then
-            self.refs.root:Destroy()
-        end
-
-        if self.refs.secondRoot then
-            self.refs.secondRoot:Destroy()
-        end
-    end)
+		if self.refs.secondRoot then
+			self.refs.secondRoot:Destroy()
+		end
+	end)
 end
 
 return Session

@@ -6,19 +6,9 @@
 	@time July 22, 2026
 ]]
 
-export type Preset =
-	"br"
-	| "tr"
-	| "tl"
-	| "bl"
-	| "bc"
-	| "tc"
-	| "bottom right"
-	| "top right"
-	| "top left"
-	| "bottom left"
-	| "bottom center"
-	| "top center"
+local Types = require("../../../../types/uiTypes")
+
+export type Preset = Types.PlacementPreset
 
 local bottomCenter = Vector2.new(0.5, 1)
 
@@ -26,26 +16,26 @@ local presetAnchors: { [string]: Vector2 } = {
 	br = Vector2.new(1, 1),
 	bottomright = Vector2.new(1, 1),
 
+	tc = Vector2.new(0.5, 0),
+	topcenter = Vector2.new(0.5, 0),
+
+	bl = Vector2.new(0, 1),
+	bottomleft = Vector2.new(0, 1),
+
 	tr = Vector2.new(1, 0),
 	topright = Vector2.new(1, 0),
 
 	tl = Vector2.new(0, 0),
 	topleft = Vector2.new(0, 0),
 
-	bl = Vector2.new(0, 1),
-	bottomleft = Vector2.new(0, 1),
-
 	bc = bottomCenter,
 	bottomcenter = bottomCenter,
-
-	tc = Vector2.new(0.5, 0),
-	topcenter = Vector2.new(0.5, 0),
 }
 
 local Placement = {}
 
 local function normalize(value: string): string
-	return string.gsub(string.lower(value), "[%s_%-]", "")
+	return (string.gsub(string.lower(value), "[%s_%-]", ""))
 end
 
 local function edgeOffset(anchor: number, inset: number): number
@@ -74,12 +64,7 @@ function Placement.resolve(value: any, inset: number): (UDim2, Vector2)
 	local key = if type(value) == "string" then normalize(value) else "bc"
 	local anchor = presetAnchors[key] or bottomCenter
 
-	return UDim2.new(
-		anchor.X,
-		edgeOffset(anchor.X, inset),
-		anchor.Y,
-		edgeOffset(anchor.Y, inset)
-	), anchor
+	return UDim2.new(anchor.X, edgeOffset(anchor.X, inset), anchor.Y, edgeOffset(anchor.Y, inset)), anchor
 end
 
 function Placement.isTop(root: GuiObject): boolean
@@ -110,8 +95,7 @@ function Placement.suggestion(root: GuiObject, offset: number): (UDim2, Vector2)
 	local below = Placement.isTop(root)
 	local direction = if below then 1 else -1
 
-	return UDim2.new(0.5, 0, if below then 1 else 0, direction * offset),
-		Vector2.new(0.5, if below then 0 else 1)
+	return UDim2.new(0.5, 0, if below then 1 else 0, direction * offset), Vector2.new(0.5, if below then 0 else 1)
 end
 
 return table.freeze(Placement)

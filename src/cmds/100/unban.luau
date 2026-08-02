@@ -1,16 +1,16 @@
+--!strict
+
 --[[
 	@name unban
 	@author driftingAurora, dullflowerr, alias; kioukaii
 	@time July 3, 2026
 ]]
 
---!strict
-
 local Types = require("../../types/sharedTypes")
 
 export type Definition = Types.Definition
 
-local definition: Definition = {
+local DefinitionData: Definition = {
 	name = "unban",
 	rank = 100,
 	aliases = {},
@@ -25,4 +25,4 @@ local definition: Definition = {
 	},
 }
 
-return table.freeze(definition)
+return table.freeze(DefinitionData)

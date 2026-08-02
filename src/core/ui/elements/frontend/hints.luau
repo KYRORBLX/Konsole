@@ -5,768 +5,811 @@
 ]]
 
 --// imports
-local imports = {
-    TextService = game:GetService("TextService"),
-    Players = game:GetService("Players"),
+local Imports = {
+	UserInputService = game:GetService("UserInputService"),
+	TextService = game:GetService("TextService"),
+	Players = game:GetService("Players"),
 
-    Arguments = require("../../../shared/kommand/arguments"),
-    Hint = require("../../motion/suggest/hint"),
-    Text = require("../misc/text"),
-    View = require("../misc/view"),
+	Arguments = require("../../../shared/kommand/arguments"),
+	Hint = require("../../motion/suggest/hint"),
+
+	Text = require("../misc/text"),
+	View = require("../misc/view"),
 }
 
+local Types = require("../../../../types/uiTypes")
+
+type Chip = Types.HintChip
+type ActiveChip = Types.ActiveHintChip
+
 --// locals
-local function hintRowFor(self, channel)
-    return channel == 2 and self.refs.SecondHintRow or self.refs.HintRow
+local function hintRowFor(self, channel): Frame?
+	local row = channel == 2 and self.refs.SecondHintRow or self.refs.HintRow
+
+	if typeof(row) == "Instance" and row:IsA("Frame") then
+		return row
+	end
+
+	return nil
 end
 
-local function mainInputFor(self, channel)
-    return channel == 2 and self.refs.SecondInputBox or self.refs.InputBox
+local function mainInputFor(self, channel): TextBox?
+	local input = channel == 2 and self.refs.SecondInputBox or self.refs.InputBox
+
+	if typeof(input) == "Instance" and input:IsA("TextBox") then
+		return input
+	end
+
+	return nil
 end
 
 local function measureWidth(config, text)
-    local size = imports.TextService:GetTextSize(
-        text,
+	local size =
+		Imports.TextService:GetTextSize(text, config.layout.textSize, config.font.mono, Vector2.new(100000, 100000))
 
-        config.layout.textSize,
-        config.font.mono,
-
-        Vector2.new(100000, 100000)
-    )
-
-    return size.X
+	return size.X
 end
 
 local function hintGap(config)
-    return math.floor((measureWidth(config, "a a") - measureWidth(config, "aa")) * 0.5)
+	return math.floor((measureWidth(config, "a a") - measureWidth(config, "aa")) * 0.5)
 end
 
 local function valueWidth(config, text)
-    if text == "" then
-        return 0
-    end
+	if text == "" then
+		return 0
+	end
 
-    local size = config.layout.hintTextSize or 13
-    local font = config.font.mono
+	local size = config.layout.hintTextSize or 13
+	local font = config.font.mono
 
-    local full = imports.TextService:GetTextSize(text .. ".", size, font, Vector2.new(100000, 100000)).X
-    local dot = imports.TextService:GetTextSize(".", size, font, Vector2.new(100000, 100000)).X
+	local full = Imports.TextService:GetTextSize(text .. ".", size, font, Vector2.new(100000, 100000)).X
+	local dot = Imports.TextService:GetTextSize(".", size, font, Vector2.new(100000, 100000)).X
 
-    return full - dot
+	return full - dot
 end
 
 local function textOffset(self, channel)
-    local input = mainInputFor(self, channel)
-    local config = self.config
-    local text = typeof(input) == "Instance" and tostring(input.Text or "") or ""
+	local input = mainInputFor(self, channel)
+	local config = self.config
 
-    text = (string.gsub(text, "%s+$", ""))
+	local text = input and tostring(input.Text or "") or ""
+	text = (string.gsub(text, "%s+$", ""))
 
-    local gap = hintGap(config)
+	local gap = hintGap(config)
+	if text == "" then
+		return gap
+	end
 
-    if text == "" then
-        return gap
-    end
-
-    return measureWidth(config, text) + gap
+	return measureWidth(config, text) + gap
 end
 
 local function argLabel(arg, index)
-    local name = tostring(arg.name or ("arg" .. index))
-    local typeName = string.lower(tostring(arg.type or "string"))
-    local optional = arg.required == false or arg.default ~= nil
+	local name = tostring(arg.name or ("arg" .. index))
+	local typeName = string.lower(tostring(arg.type or "string"))
+	local optional = arg.required == false or arg.default ~= nil
 
-    return optional and (name .. "?") or name, typeName
+	return optional and (name .. "?") or name, typeName
 end
 
 local function quoteIfNeeded(value)
-    local text = imports.Text.trim(value)
+	local text = Imports.Text.trim(value)
 
-    if text ~= "" and string.find(text, "%s") then
-        return string.format("%q", text)
-    end
+	if text ~= "" and string.find(text, "%s") then
+		return string.format("%q", text)
+	end
 
-    return text
+	return text
 end
 
 local function fixedTokenArg(arg)
-    local typeName = string.lower(tostring(arg.type or "string"))
-    return typeName == "number" or typeName == "boolean"
+	local typeName = string.lower(tostring(arg.type or "string"))
+	return typeName == "number" or typeName == "boolean"
 end
 
 local function argValid(arg, text)
-    text = imports.Text.trim(text)
-    if text == "" then
-        return true
-    end
+	text = Imports.Text.trim(text)
+	if text == "" then
+		return true
+	end
 
-    local typeName = string.lower(tostring(arg.type or "string"))
+	local typeName = string.lower(tostring(arg.type or "string"))
 
-    local convert = imports.Arguments.types[typeName]
+	local convert = Imports.Arguments.types[typeName]
 
-    if type(convert) ~= "function" then
-        return true
-    end
+	if type(convert) ~= "function" then
+		return true
+	end
 
-    local ok = convert(text, imports.Players.LocalPlayer)
+	local ok = convert(text, Imports.Players.LocalPlayer)
 
-    return ok == true
+	return ok == true
 end
 
 --// public api
 local Hints = {}
 
 function Hints.attach(Session)
-    function Session:setSchemas(map)
-        self.argSchemas = type(map) == "table" and map or {}
-    end
-
-    function Session:commandContext(text)
-        local schemas = type(self.argSchemas) == "table" and self.argSchemas or {}
-        local tokens = imports.Arguments.tokenize(text)
-
-        local firstToken = tostring(tokens[1] or "")
-        local commandWord = string.lower(firstToken)
-
-        local args = schemas[commandWord]
-
-        local word = firstToken
-        local glued = nil
-
-        if args == nil and #tokens == 1 and firstToken ~= "" then
-            local best = nil
-
-            for name in schemas do
-                if
-                    #name < #commandWord
-                    and string.sub(commandWord, 1, #name) == name
-
-                    and (best == nil or #name > #best)
-                then
-                    best = name
-                end
-            end
-
-            if best then
-                commandWord = best
-                args = schemas[best]
-
-                word = string.sub(firstToken, 1, #best)
-                glued = string.sub(firstToken, #best + 1)
-            end
-        end
-
-        local trailingSpace = string.match(text, "%s$") ~= nil
-        local hasArgs = type(args) == "table" and #args > 0
-        local exactCommand = args ~= nil and #tokens == 1 and firstToken ~= ""
-
-        local supplied = math.max(0, #tokens - 1)
-        local completed = trailingSpace and supplied or math.max(0, supplied - 1)
-
-        return {
-            trailingSpace = trailingSpace,
-            hasArgs = hasArgs,
-            tokens = tokens,
+	function Session:setSchemas(map)
+		self.argSchemas = type(map) == "table" and map or {}
+	end
 
-            activeIndex = completed + 1,
-            
-            argMode = hasArgs and (exactCommand or glued ~= nil or trailingSpace or #tokens >= 2),
-            command = args ~= nil and commandWord or nil,
-            
-            
-            glued = glued,
-            word = word,
-            args = type(args) == "table" and args or {},
-        }
-    end
+	function Session:commandContext(text)
+		local schemas = type(self.argSchemas) == "table" and self.argSchemas or {}
+		local tokens = Imports.Arguments.tokenize(text)
 
-    function Session:clearHintChips(channel)
-        for _, connection in self.hintConnections[channel] or {} do
-            if connection and connection.Connected then
-                connection:Disconnect()
-            end
-        end
-
-        self.hintConnections[channel] = {}
+		local firstToken = tostring(tokens[1] or "")
+		local commandWord = string.lower(firstToken)
+
+		local args = schemas[commandWord]
 
-        local row = hintRowFor(self, channel)
+		local word = firstToken
+		local glued = nil
 
-        if typeof(row) == "Instance" then
-            for _, child in row:GetChildren() do
-                if child:IsA("Frame") then
-                    child:Destroy()
-                end
-            end
-        end
+		if args == nil and #tokens == 1 and firstToken ~= "" then
+			local best = nil
 
-        self.channelChips[channel] = {}
-        self.hintKey[channel] = nil
-    end
+			for name in schemas do
+				if
+					#name < #commandWord
+					and string.sub(commandWord, 1, #name) == name
+					and (best == nil or #name > #best)
+				then
+					best = name
+				end
+			end
 
-    function Session:hideHints(channel)
-        local channels = channel and { channel } or { 1, 2 }
+			if best then
+				commandWord = best
+				args = schemas[best]
 
-        for _, target in channels do
-            local chips = self.channelChips[target]
+				word = string.sub(firstToken, 1, #best)
+				glued = string.sub(firstToken, #best + 1)
+			end
+		end
 
-            if chips and #chips > 0 then
-                self.hintToken = (self.hintToken or 0) + 1
+		local trailingSpace = string.match(text, "%s$") ~= nil
+		local hasArgs = type(args) == "table" and #args > 0
 
-                local token = self.hintToken
+		local supplied = math.max(0, #tokens - 1)
+		local completed = trailingSpace and supplied or math.max(0, supplied - 1)
 
-                for _, chip in chips do
-                    imports.Hint.text(self, chip.name, 1)
+		return {
+			trailingSpace = trailingSpace,
+			hasArgs = hasArgs,
+			tokens = tokens,
 
-                    imports.Hint.text(self, chip.box, 1)
-                end
+			activeIndex = completed + 1,
 
-                self.hintKey[target] = nil
+			argMode = hasArgs and (glued ~= nil or trailingSpace or #tokens >= 2),
+			command = args ~= nil and commandWord or nil,
 
-                task.delay(self.config.motion.exitFadeTime, function()
-                    if self.refs and self.hintToken == token then
-                        self:clearHintChips(target)
-                    end
-                end)
-            end
-        end
-    end
+			glued = glued,
+			word = word,
+			args = type(args) == "table" and args or {},
+		}
+	end
 
-    function Session:styleChips(channel)
-        local colors = self.config.color
+	function Session:clearHintChips(channel)
+		for _, connection in self.hintConnections[channel] or {} do
+			if connection and connection.Connected then
+				connection:Disconnect()
+			end
+		end
 
-        local chips = self.channelChips[channel] or {}
-        local active = self.activeChip
+		self.hintConnections[channel] = {}
 
-        for index, chip in chips do
-            local isActive = active ~= nil and active.channel == channel and active.index == index
-            local valid = argValid(chip.arg, chip.box.Text)
+		local row = hintRowFor(self, channel)
 
-            chip.name.TextColor3 = isActive and colors.inputText or colors.mutedText
+		if row then
+			for _, child in row:GetChildren() do
+				if child:IsA("Frame") then
+					child:Destroy()
+				end
+			end
+		end
 
-            chip.box.TextColor3 = valid and colors.inputText or colors.errorText
-        end
-    end
+		self.channelChips[channel] = {}
+		self.hintKey[channel] = nil
+	end
 
-    function Session:renderHints(channel, args)
-        self:clearHintChips(channel)
+	function Session:hideHints(channel)
+		local channels = channel and { channel } or { 1, 2 }
 
-        local row = hintRowFor(self, channel)
-        if typeof(row) ~= "Instance" then
-            return
-        end
+		for _, target in channels do
+			local chips = self.channelChips[target]
 
-        local config = self.config
+			if chips and #chips > 0 then
+				self.hintToken = (self.hintToken or 0) + 1
 
-        local layout = config.layout
-        local colors = config.color
-        local panel = config.panel
+				local token = self.hintToken
 
-        local chips = {}
+				for _, chip in chips do
+					Imports.Hint.text(self, chip.name, 1)
 
-        self.channelChips[channel] = chips
-        self.hintConnections[channel] = self.hintConnections[channel] or {}
+					Imports.Hint.text(self, chip.box, 1)
+				end
 
-        local rowLayout = row:FindFirstChildOfClass("UIListLayout")
+				self.hintKey[target] = nil
 
-        if rowLayout then
-            rowLayout.Padding = UDim.new(0, hintGap(config))
-        end
+				task.delay(self.config.motion.exitFadeTime, function()
+					if self.refs and self.hintToken == token then
+						self:clearHintChips(target)
+					end
+				end)
+			end
+		end
+	end
 
-        local function track(connection)
-            table.insert(self.hintConnections[channel], connection)
-        end
+	function Session:styleChips(channel)
+		local colors = self.config.color
 
-        local function focusOnInput(input, index)
-            if
-                input.UserInputType ~= Enum.UserInputType.MouseButton1
-                and input.UserInputType ~= Enum.UserInputType.Touch
-            then
-                return
-            end
+		local chips = (self.channelChips[channel] or {}) :: { Chip }
+		local active = self.activeChip :: ActiveChip?
 
-            self:focusChip(channel, index)
-        end
+		for index, chip in chips do
+			local isActive = active ~= nil and active.channel == channel and active.index == index
+			local valid = argValid(chip.arg, chip.box.Text)
 
-        for index, arg in args do
-            local name, typeName = argLabel(arg, index)
+			chip.name.TextColor3 = isActive and colors.inputText or colors.mutedText
 
-            local frame = imports.View.make("Frame", {
+			chip.box.TextColor3 = valid and colors.inputText or colors.errorText
+		end
+	end
 
-                BackgroundTransparency = 1,
-                BorderSizePixel = 0,
-                Active = true,
+	function Session:renderHints(channel, args)
+		self:clearHintChips(channel)
 
-                LayoutOrder = index,
-                ZIndex = row.ZIndex,
+		local row = hintRowFor(self, channel)
+		if not row then
+			return
+		end
 
-                Name = "Hint_" .. tostring(index),
+		local config = self.config
 
-                AutomaticSize = Enum.AutomaticSize.X,
-                Size = UDim2.fromOffset(0, panel.hintHeight or 20),
+		local layout = config.layout
+		local colors = config.color
+		local panel = config.panel
 
-            }, row)
+		local chips: { Chip } = {}
 
-            imports.View.make("UIListLayout", {
+		self.channelChips[channel] = chips
+		self.hintConnections[channel] = self.hintConnections[channel] or {}
 
-                VerticalAlignment = Enum.VerticalAlignment.Center,
-                FillDirection = Enum.FillDirection.Horizontal,
-                SortOrder = Enum.SortOrder.LayoutOrder,
+		local rowLayout = row:FindFirstChildOfClass("UIListLayout")
 
-                Padding = UDim.new(0, hintGap(config)),
+		if rowLayout then
+			rowLayout.Padding = UDim.new(0, hintGap(config))
+		end
 
-            }, frame)
+		local function track(connection)
+			table.insert(self.hintConnections[channel], connection)
+		end
 
-            local nameLabel = imports.View.make("TextLabel", {
+		local function focusOnInput(input, index)
+			if
+				input.UserInputType ~= Enum.UserInputType.MouseButton1
+				and input.UserInputType ~= Enum.UserInputType.Touch
+			then
+				return
+			end
 
-                BackgroundTransparency = 1,
-                TextTransparency = 1,
-                LayoutOrder = 1,
+			self:focusChip(channel, index)
+		end
 
-                TextColor3 = colors.mutedText,
-                Font = config.font.mono,
+		for index, arg in args do
+			local name, typeName = argLabel(arg, index)
 
-                TextSize = layout.hintTextSize or 13,
-                ZIndex = row.ZIndex + 1,
-                Active = true,
+			local frame = Imports.View.make("Frame", {
 
-                Text = name .. ":",
-                Name = "Name",
+				BackgroundTransparency = 1,
+				BorderSizePixel = 0,
+				Active = true,
 
-                AutomaticSize = Enum.AutomaticSize.X,
-                TextYAlignment = Enum.TextYAlignment.Center,
-                Size = UDim2.fromOffset(0, panel.hintHeight or 20),
+				LayoutOrder = index,
+				ZIndex = row.ZIndex,
 
-            }, frame)
+				Name = "Hint_" .. tostring(index),
 
-            local box = imports.View.make("TextBox", {
+				AutomaticSize = Enum.AutomaticSize.X,
+				Size = UDim2.fromOffset(0, panel.hintHeight or 20),
+			}, row) :: Frame
 
-                PlaceholderColor3 = colors.hintGhost or colors.mutedText,
+			Imports.View.make("UIListLayout", {
 
-                BackgroundTransparency = 1,
-                ClearTextOnFocus = false,
-                TextTransparency = 1,
+				VerticalAlignment = Enum.VerticalAlignment.Center,
+				FillDirection = Enum.FillDirection.Horizontal,
+				SortOrder = Enum.SortOrder.LayoutOrder,
 
-                TextColor3 = colors.inputText,
-                Font = config.font.mono,
+				Padding = UDim.new(0, hintGap(config)),
+			}, frame)
 
-                TextSize = layout.hintTextSize or 13,
-                ZIndex = row.ZIndex + 1,
-                LayoutOrder = 2,
+			local nameLabel = Imports.View.make("TextLabel", {
 
-                MultiLine = false,
+				BackgroundTransparency = 1,
+				TextTransparency = 1,
+				LayoutOrder = 1,
 
-                PlaceholderText = typeName,
-                Name = "Value",
-                Text = "",
+				TextColor3 = colors.mutedText,
+				Font = config.font.mono,
 
-                AutomaticSize = Enum.AutomaticSize.None,
-                TextXAlignment = Enum.TextXAlignment.Left,
-                TextYAlignment = Enum.TextYAlignment.Center,
-                Size = UDim2.fromOffset(6, panel.hintHeight or 20),
+				TextSize = layout.hintTextSize or 13,
+				ZIndex = row.ZIndex + 1,
+				Active = true,
 
-            }, frame)
+				Text = name .. ":",
+				Name = "Name",
 
-            local function fitValue()
-                local source = box.Text ~= "" and box.Text or typeName
+				AutomaticSize = Enum.AutomaticSize.X,
+				TextYAlignment = Enum.TextYAlignment.Center,
+				Size = UDim2.fromOffset(0, panel.hintHeight or 20),
+			}, frame) :: TextLabel
 
-                box.Size = UDim2.fromOffset(math.max(2, valueWidth(config, source)), panel.hintHeight or 20)
+			local box = Imports.View.make("TextBox", {
 
-                self:queueVisibleWidthRefresh(channel)
-            end
+				PlaceholderColor3 = colors.hintGhost or colors.mutedText,
 
-            fitValue()
+				BackgroundTransparency = 1,
+				ClearTextOnFocus = false,
+				TextTransparency = 1,
 
-            track(box.Focused:Connect(function()
-                self.activeChannel = channel
+				TextColor3 = colors.inputText,
+				Font = config.font.mono,
 
-                self:ensureStructured(channel)
+				TextSize = layout.hintTextSize or 13,
+				ZIndex = row.ZIndex + 1,
+				LayoutOrder = 2,
 
-                self.activeChip = { channel = channel, index = index, arg = arg, box = box }
-                self:styleChips(channel)
+				MultiLine = false,
 
-                fitValue()
+				PlaceholderText = typeName,
+				Name = "Value",
+				Text = "",
 
-                self:updateSuggestions(box.Text)
-            end))
+				AutomaticSize = Enum.AutomaticSize.None,
+				TextXAlignment = Enum.TextXAlignment.Left,
+				TextYAlignment = Enum.TextYAlignment.Center,
+				Size = UDim2.fromOffset(6, panel.hintHeight or 20),
+			}, frame) :: TextBox
 
-            track(box:GetPropertyChangedSignal("Text"):Connect(function()
-                if string.find(box.Text, "\t", 1, true) then
-                    box.Text = (string.gsub(box.Text, "\t", ""))
-                    return
-                end
+			local function fitValue()
+				local source = box.Text ~= "" and box.Text or typeName
 
-                if fixedTokenArg(arg) and string.find(box.Text, "%s$") then
-                    box.Text = imports.Text.trim(box.Text)
+				box.Size = UDim2.fromOffset(math.max(2, valueWidth(config, source)), panel.hintHeight or 20)
 
-                    if index < #self.channelChips[channel] then
-                        task.defer(function()
-                            self:focusChip(channel, index + 1)
-                        end)
-                    end
+				self:queueVisibleWidthRefresh(channel)
+			end
 
-                    return
-                end
+			local previousText = box.Text
 
-                fitValue()
-                self:styleChips(channel)
+			fitValue()
 
-                if self.activeChip and self.activeChip.box == box then
-                    self:updateSuggestions(box.Text)
-                end
-            end))
+			track(box.Focused:Connect(function()
+				self.activeChannel = channel
 
-            track(box.FocusLost:Connect(function(enterPressed)
-                if not enterPressed then
-                    return
-                end
+				self:ensureStructured(channel)
 
-                if index < #self.channelChips[channel] then
-                    self:focusChip(channel, index + 1)
-                else
-                    self:submit(channel)
-                end
-            end))
+				self.activeChip = { channel = channel, index = index, arg = arg, box = box }
+				self:styleChips(channel)
 
-            track(frame.InputBegan:Connect(function(input)
-                focusOnInput(input, index)
-            end))
+				fitValue()
 
-            track(nameLabel.InputBegan:Connect(function(input)
-                focusOnInput(input, index)
-            end))
+				self:updateSuggestions(box.Text)
+			end))
 
-            table.insert(chips, {
-                name = nameLabel,
-                frame = frame,
-                box = box,
-                arg = arg,
-            })
-        end
-    end
+			track(box:GetPropertyChangedSignal("Text"):Connect(function()
+				local currentText = box.Text
 
-    function Session:focusedChip()
-        for channel, chips in self.channelChips or {} do
+				if
+					previousText ~= ""
+					and currentText == ""
+					and Imports.UserInputService:IsKeyDown(Enum.KeyCode.Backspace)
+				then
+					self.clearedArgument = box
+				elseif currentText ~= "" and self.clearedArgument == box then
+					self.clearedArgument = nil
+				end
 
-            for index, chip in chips do
-                if typeof(chip.box) == "Instance" and chip.box:IsFocused() then
+				previousText = currentText
 
-                    self.activeChannel = channel
-                    self.activeChip = { channel = channel, index = index, arg = chip.arg, box = chip.box }
+				if string.find(box.Text, "\t", 1, true) then
+					box.Text = (string.gsub(box.Text, "\t", ""))
+					return
+				end
 
-                    return self.activeChip
-                end
-            end
-        end
+				if fixedTokenArg(arg) and string.find(box.Text, "%s$") then
+					box.Text = Imports.Text.trim(box.Text)
 
-        local active = self.activeChip
+					if index < #self.channelChips[channel] then
+						task.defer(function()
+							self:focusChip(channel, index + 1)
+						end)
+					end
 
-        if active and typeof(active.box) == "Instance" and active.box.Parent then
-            return active
-        end
+					return
+				end
 
-        return nil
-    end
+				fitValue()
+				self:styleChips(channel)
 
-    function Session:revealHints(channel)
-        for _, chip in self.channelChips[channel] or {} do
+				if self.activeChip and self.activeChip.box == box then
+					self:updateSuggestions(box.Text)
+				end
+			end))
 
-            imports.Hint.text(self, chip.name, 0)
-            imports.Hint.text(self, chip.box, 0)
-        end
-    end
+			track(box.FocusLost:Connect(function(enterPressed)
+				if not enterPressed then
+					return
+				end
 
-    function Session:showHints(channel, ctx)
-        local row = hintRowFor(self, channel)
-        local offset = textOffset(self, channel)
+				if index < #self.channelChips[channel] then
+					self:focusChip(channel, index + 1)
+				else
+					self:submit(channel)
+				end
+			end))
 
-        if
-            self.hintKey[channel] ~= ctx.command
-            or #(self.channelChips[channel] or {}) ~= #ctx.args
-        then
-            self.hintToken = (self.hintToken or 0) + 1
+			track(frame.InputBegan:Connect(function(input)
+				focusOnInput(input, index)
+			end))
 
-            local hadChips = #(self.channelChips[channel] or {}) > 0
+			track(nameLabel.InputBegan:Connect(function(input)
+				focusOnInput(input, index)
+			end))
 
-            self:renderHints(channel, ctx.args)
+			table.insert(chips, {
+				name = nameLabel,
+				frame = frame,
+				box = box,
+				arg = arg,
+			})
+		end
+	end
 
-            self.hintKey[channel] = ctx.command
+	function Session:focusedChip()
+		for channel, rawChips in self.channelChips or {} do
+			for index, chip in rawChips :: { Chip } do
+				if chip.box:IsFocused() then
+					self.activeChannel = channel
+					self.activeChip = { channel = channel, index = index, arg = chip.arg, box = chip.box }
 
-            if hadChips then
-                imports.Hint.move(self, row, offset)
+					return self.activeChip
+				end
+			end
+		end
 
-            else
-                imports.Hint.snap(self, row, offset)
-            end
+		local active = self.activeChip :: ActiveChip?
 
-            self:revealHints(channel)
+		if active and active.box.Parent then
+			return active
+		end
 
-        else
-            imports.Hint.move(self, row, offset)
-        end
+		return nil
+	end
 
-        self:styleChips(channel)
-    end
+	function Session:revealHints(channel)
+		for _, chip in (self.channelChips[channel] or {}) :: { Chip } do
+			Imports.Hint.text(self, chip.name, 0)
+			Imports.Hint.text(self, chip.box, 0)
+		end
+	end
 
-    function Session:focusChip(channel, index)
-        local chips = self.channelChips[channel]
-        if not chips or #chips == 0 then
-            return
-        end
+	function Session:showHints(channel, ctx)
+		local row = hintRowFor(self, channel)
+		local offset = textOffset(self, channel)
 
-        index = math.clamp(index, 1, #chips)
+		if self.hintKey[channel] ~= ctx.command or #(self.channelChips[channel] or {}) ~= #ctx.args then
+			self.hintToken = (self.hintToken or 0) + 1
 
-        local chip = chips[index]
+			local hadChips = #(self.channelChips[channel] or {}) > 0
 
-        self.activeChannel = channel
-        self.activeChip = { channel = channel, index = index, arg = chip.arg, box = chip.box }
+			self:renderHints(channel, ctx.args)
 
-        self:styleChips(channel)
+			self.hintKey[channel] = ctx.command
 
-        local function capture()
-            local active = self.activeChip
-            if
-                self.isDestroying
-                or not active
-                or active.channel ~= channel
-                or active.index ~= index
-                or active.box ~= chip.box
-                or typeof(chip.box) ~= "Instance"
-                or not chip.box.Parent
-            then
-                return
-            end
+			if hadChips then
+				Imports.Hint.move(self, row, offset)
+			else
+				Imports.Hint.snap(self, row, offset)
+			end
 
-            if not chip.box:IsFocused() then
-                chip.box:CaptureFocus()
-            end
+			self:revealHints(channel)
+		else
+			Imports.Hint.move(self, row, offset)
+		end
 
-            chip.box.CursorPosition = #chip.box.Text + 1
-        end
+		self:styleChips(channel)
+	end
 
-        capture()
-        task.defer(capture)
+	function Session:focusChip(channel, index)
+		local chips = self.channelChips[channel] :: { Chip }?
+		if not chips or #chips == 0 then
+			return
+		end
 
-        self:updateSuggestions(chip.box.Text)
-    end
+		index = math.clamp(index, 1, #chips)
 
-    function Session:moveArgument(delta)
-        if not self.structured[self.activeChannel] then
-            return false
-        end
+		local chip = chips[index]
+		local box = chip.box
 
-        local channel = self.activeChannel
-        local chips = self.channelChips[channel]
+		self.activeChannel = channel
+		self.activeChip = { channel = channel, index = index, arg = chip.arg, box = box }
 
-        if not chips or #chips == 0 then
-            return false
-        end
+		self:styleChips(channel)
 
-        local active = self.activeChip
-        if active and active.channel == channel and typeof(active.box) == "Instance" then
+		local function capture()
+			local active = self.activeChip
+			if
+				self.isDestroying
+				or not active
+				or active.channel ~= channel
+				or active.index ~= index
+				or active.box ~= box
+				or not box.Parent
+			then
+				return
+			end
 
-            local text = tostring(active.box.Text or "")
-            local cursor = active.box.CursorPosition
+			if not box:IsFocused() then
+				box:CaptureFocus()
+			end
 
-            if delta < 0 and cursor > 1 then
-                return false
-            end
+			box.CursorPosition = #box.Text + 1
+		end
 
-            if delta > 0 and cursor <= #text then
-                return false
-            end
+		capture()
+		task.defer(capture)
 
-            if delta < 0 and active.index <= 1 then
-                local input = mainInputFor(self, channel)
+		self:updateSuggestions(box.Text)
+	end
 
-                if typeof(input) == "Instance" then
-                    self.activeChip = nil
+	function Session:moveArgument(delta, force)
+		if not self.structured[self.activeChannel] then
+			return false
+		end
 
-                    self:styleChips(channel)
+		local channel = self.activeChannel
+		local chips = self.channelChips[channel] :: { Chip }?
 
-                    input:CaptureFocus()
+		if not chips or #chips == 0 then
+			return false
+		end
 
-                    input.CursorPosition = #input.Text + 1
+		local active = self.activeChip :: ActiveChip?
+		if active and active.channel == channel then
+			local text = tostring(active.box.Text or "")
+			local cursor = active.box.CursorPosition
 
-                    return true
-                end
-            end
+			if not force and delta < 0 and cursor > 1 then
+				return false
+			end
 
-            local nextIndex = active.index + delta
+			if not force and delta > 0 and cursor <= #text then
+				return false
+			end
 
-            if nextIndex >= 1 and nextIndex <= #chips then
-                self:focusChip(channel, nextIndex)
+			if delta < 0 and active.index <= 1 then
+				local input = mainInputFor(self, channel)
 
-                return true
-            end
+				if input then
+					self.activeChip = nil
 
-            return false
-        end
+					self:styleChips(channel)
+					self:hideSuggestions()
 
-        if delta > 0 then
-            local input = mainInputFor(self, channel)
+					input:CaptureFocus()
 
-            if typeof(input) ~= "Instance" or input.CursorPosition > #input.Text then
-                self:focusChip(channel, 1)
+					input.CursorPosition = #input.Text + 1
 
-                return true
-            end
-        end
+					task.defer(function()
+						if self.isDestroying or not input.Parent or not input:IsFocused() or self.activeChip ~= nil then
+							return
+						end
 
-        return false
-    end
+						self:updateSuggestions(input.Text)
+					end)
 
-    function Session:ensureStructured(channel)
-        if self.structured[channel] then
-            return
-        end
+					return true
+				end
+			end
 
-        local command = self.hintKey[channel]
+			local nextIndex = active.index + delta
 
-        if not command then
-            return
-        end
+			if nextIndex >= 1 and nextIndex <= #chips then
+				self:focusChip(channel, nextIndex)
 
-        self.structured[channel] = true
-        self.commandWord[channel] = command
+				return true
+			end
 
-        local input = mainInputFor(self, channel)
+			return false
+		end
 
-        if typeof(input) == "Instance" then
-            local word = imports.Arguments.tokenize(input.Text)[1] or command
+		if delta > 0 then
+			local input = mainInputFor(self, channel)
 
-            if input.Text ~= word then
-                input.Text = word
-                input.CursorPosition = #word + 1
-            end
-        end
-    end
+			if not input or force or input.CursorPosition > #input.Text then
+				self:focusChip(channel, 1)
 
-    function Session:enterStructured(channel, ctx)
-        local input = mainInputFor(self, channel)
+				return true
+			end
+		end
 
-        self.commandWord[channel] = ctx.command
+		return false
+	end
 
-        self.structured[channel] = true
+	function Session:ensureStructured(channel)
+		if self.structured[channel] then
+			return
+		end
 
-        local display = ctx.word
+		local command = self.hintKey[channel]
 
-        if typeof(input) == "Instance" and input.Text ~= display then
-            input.Text = display
+		if not command then
+			return
+		end
 
-            input.CursorPosition = #display + 1
-        end
+		self.structured[channel] = true
+		self.commandWord[channel] = command
 
-        self:showHints(channel, ctx)
+		local input = mainInputFor(self, channel)
 
-        if typeof(input) == "Instance" then
-            imports.Hint.tint(self, input, self.config.color.mutedText)
-        end
+		if input then
+			local word = Imports.Arguments.tokenize(input.Text)[1] or command
 
-        if ctx.glued and ctx.glued ~= "" then
-            local chip = (self.channelChips[channel] or {})[ctx.activeIndex]
+			if input.Text ~= word then
+				input.Text = word
+				input.CursorPosition = #word + 1
+			end
+		end
+	end
 
-            if chip and typeof(chip.box) == "Instance" and chip.box.Text == "" then
-                chip.box.Text = ctx.glued
-            end
-        end
+	function Session:enterStructured(channel, ctx)
+		local input = mainInputFor(self, channel)
 
-        self:focusChip(channel, ctx.activeIndex)
-    end
+		self.commandWord[channel] = ctx.command
 
-    function Session:releaseActiveChip(channel)
-        if self.activeChip and self.activeChip.channel == channel then
-            self.activeChip = nil
-            self:styleChips(channel)
-        end
-    end
+		self.structured[channel] = true
 
-    function Session:exitStructured(channel)
-        self.structured[channel] = false
-        self.commandWord[channel] = nil
+		local display = ctx.word
 
-        self:queueVisibleWidthRefresh(channel)
+		if input and input.Text ~= display then
+			input.Text = display
 
-        self:releaseActiveChip(channel)
-        self:hideHints(channel)
+			input.CursorPosition = #display + 1
+		end
 
-        local input = mainInputFor(self, channel)
+		self:showHints(channel, ctx)
 
-        if typeof(input) == "Instance" then
-            imports.Hint.tint(self, input, self.config.color.inputText)
-        end
-    end
+		if input then
+			Imports.Hint.tint(self, input, self.config.color.mutedText)
+		end
 
-    function Session:assembleCommand(channel)
-        local input = mainInputFor(self, channel)
+		local chips = (self.channelChips[channel] or {}) :: { Chip }
 
-        if not self.structured[channel] then
-            return typeof(input) == "Instance" and tostring(input.Text or "") or ""
-        end
+		if ctx.glued and ctx.glued ~= "" then
+			local chip = chips[ctx.activeIndex]
 
-        local parts = { self.commandWord[channel] or "" }
+			if chip and chip.box.Text == "" then
+				chip.box.Text = ctx.glued
+			end
+		else
+			for tokenIndex = 2, #ctx.tokens do
+				local chip = chips[tokenIndex - 1]
 
-        for _, chip in self.channelChips[channel] or {} do
-            local value = imports.Text.trim(chip.box.Text)
+				if chip and chip.box.Text == "" then
+					chip.box.Text = ctx.tokens[tokenIndex]
+				end
+			end
+		end
 
-            if value ~= "" then
-                table.insert(parts, quoteIfNeeded(value))
-            end
-        end
+		self:focusChip(channel, ctx.activeIndex)
+	end
 
-        return table.concat(parts, " ")
-    end
+	function Session:releaseActiveChip(channel)
+		if self.activeChip and self.activeChip.channel == channel then
+			self.activeChip = nil
+			self:styleChips(channel)
+		end
+	end
 
-    function Session:markCommandValidity(channel, text)
-        local input = mainInputFor(self, channel)
+	function Session:exitStructured(channel)
+		self.structured[channel] = false
+		self.commandWord[channel] = nil
 
-        if typeof(input) ~= "Instance" then
-            return
-        end
+		self:queueVisibleWidthRefresh(channel)
 
-        local word = string.lower(imports.Arguments.tokenize(text)[1] or "")
-        local known = word == ""
+		self:releaseActiveChip(channel)
+		self:hideHints(channel)
 
-        for name in (type(self.argSchemas) == "table" and self.argSchemas or {}) do
+		local input = mainInputFor(self, channel)
 
-            if string.sub(name, 1, #word) == word then
-                known = true
-                break
-            end
-        end
+		if input then
+			Imports.Hint.tint(self, input, self.config.color.inputText)
+		end
+	end
 
-        imports.Hint.tint(self, input, known and self.config.color.inputText or self.config.color.errorText)
-    end
+	function Session:assembleCommand(channel)
+		local input = mainInputFor(self, channel)
 
-    function Session:onCommandText(channel, text)
-        if not self.isExpanded then
-            return
-        end
+		if not self.structured[channel] then
+			return input and tostring(input.Text or "") or ""
+		end
 
-        if self.structured[channel] then
-            if string.lower(imports.Text.trim(text)) == (self.commandWord[channel] or "") then
-                return
-            end
+		local parts = { self.commandWord[channel] or "" }
 
-            self:exitStructured(channel)
-        end
+		for _, chip in (self.channelChips[channel] or {}) :: { Chip } do
+			local value = Imports.Text.trim(chip.box.Text)
 
-        local ctx = self:commandContext(text)
+			if value ~= "" then
+				table.insert(parts, quoteIfNeeded(value))
+			end
+		end
 
-        if ctx.hasArgs then
-            self:showHints(channel, ctx)
+		return table.concat(parts, " ")
+	end
 
-            if ctx.argMode then
-                self:enterStructured(channel, ctx)
+	function Session:markCommandValidity(channel, text)
+		local input = mainInputFor(self, channel)
 
-                return
-            end
-        else
-            self:hideHints(channel)
-        end
+		if not input then
+			return
+		end
 
-        self:markCommandValidity(channel, text)
-        self:updateSuggestions(text)
-    end
+		local word = string.lower(Imports.Arguments.tokenize(text)[1] or "")
+		local known = word == ""
+
+		for name in (type(self.argSchemas) == "table" and self.argSchemas or {}) do
+			if string.sub(name, 1, #word) == word then
+				known = true
+				break
+			end
+		end
+
+		Imports.Hint.tint(self, input, known and self.config.color.inputText or self.config.color.errorText)
+	end
+
+	function Session:onCommandText(channel, text)
+		if not self.isExpanded then
+			return
+		end
+
+		if self.structured[channel] then
+			if string.lower(Imports.Text.trim(text)) == (self.commandWord[channel] or "") then
+				if string.match(text, "%s$") then
+					local input = mainInputFor(self, channel)
+
+					if input then
+						local display = Imports.Text.trim(text)
+
+						input.Text = display
+						input.CursorPosition = #display + 1
+					end
+
+					self:focusChip(channel, 1)
+				end
+
+				return
+			end
+
+			self:exitStructured(channel)
+		end
+
+		local ctx = self:commandContext(text)
+
+		if ctx.hasArgs then
+			self:showHints(channel, ctx)
+
+			if ctx.argMode then
+				self:enterStructured(channel, ctx)
+
+				return
+			end
+		else
+			self:hideHints(channel)
+		end
+
+		self:markCommandValidity(channel, text)
+		self:updateSuggestions(text)
+	end
 end
 
 return Hints

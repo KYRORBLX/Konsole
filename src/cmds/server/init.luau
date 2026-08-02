@@ -1,24 +1,33 @@
+--!strict
+
 --[[
 	@name server
 	@author driftingAurora, dullflowerr, alias; kioukaii
 	@time June 12, 2026
 ]]
 
---!strict
-
 local Types = require("../types/sharedTypes")
 
 export type Run = Types.Run
 
-local server: { [string]: Run } = {
-	bringServer = require("@self/bringServer"),
-	banServer = require("@self/banServer").run,
-	kickServer = require("@self/kickServer"),
-	
-	killServer = require("@self/killServer"),
-	unbanServer = require("@self/unbanServer"),
-	tpServer = require("@self/tpServer"),
-	
+local Imports = {
+	BringServer = require("@self/bringServer"),
+	BanServer = require("@self/banServer").run,
+	KickServer = require("@self/kickServer"),
+
+	UnbanServer = require("@self/unbanServer"),
+	KillServer = require("@self/killServer"),
+	TPServer = require("@self/tpServer"),
 }
 
-return table.freeze(server)
+local Server: { [string]: Run } = {
+	bringServer = Imports.BringServer,
+	kickServer = Imports.KickServer,
+	banServer = Imports.BanServer,
+
+	unbanServer = Imports.UnbanServer,
+	killServer = Imports.KillServer,
+	tpServer = Imports.TPServer,
+}
+
+return table.freeze(Server)

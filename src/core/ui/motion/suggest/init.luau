@@ -5,12 +5,12 @@
 ]]
 
 --// imports
-local imports = {
-	Math = require("./math"),
+local Imports = {
 	Placement = require("../elements/misc/placement"),
+	Math = require("./math"),
 }
 
-local Tween = imports.Math.tween
+local Tween = Imports.Math.tween
 
 local function suggestionWidth(session)
 	local refs = session.refs
@@ -27,7 +27,7 @@ local function suggestionPosition(session, offset)
 		root = refs.root
 	end
 
-	return imports.Placement.suggestion(root, offset)
+	return Imports.Placement.suggestion(root, offset)
 end
 
 --// public api
@@ -51,12 +51,17 @@ function Suggest.reveal(session, count)
 	local suggList = refs.suggList
 	local startPosition, anchorPoint = suggestionPosition(session, 1)
 	local openPosition = suggestionPosition(session, panel.suggestionGap)
+	local targetSize = UDim2.fromOffset(suggestionWidth(session), (count * panel.suggestionHeight) + 4)
 
     suggList.AnchorPoint = anchorPoint
     suggList.Position = startPosition
     suggList.Visible = true
+
+	if suggList.Size.Y.Offset > targetSize.Y.Offset then
+		suggList.Size = targetSize
+	end
     
-    if typeof(refs.suggShadow) == "Instance" then
+    if typeof(refs.suggShadow) == "Instance" and refs.suggShadow:IsA("ImageLabel") then
         
 		refs.suggShadow.Visible = not session.isClosing
         refs.suggShadow.ImageTransparency = 1
@@ -67,7 +72,7 @@ function Suggest.reveal(session, count)
     end
     
 	Tween.to(suggList, {
-        Size = UDim2.fromOffset(suggestionWidth(session), (count * panel.suggestionHeight) + 4),
+        Size = targetSize,
         BackgroundTransparency = config.transparency.suggPanel,
 		Position = openPosition,
 	}, config.motion.listSmoothTime)
@@ -85,7 +90,7 @@ function Suggest.hide(session)
 	local hidePosition = openPosition
 
 	if typeof(root) == "Instance" and root:IsA("GuiObject") then
-		hidePosition = imports.Placement.suggestion(root, -config.panel.suggestionGap)
+		hidePosition = Imports.Placement.suggestion(root, -config.panel.suggestionGap)
 	end
 
 	for _, child in suggList:GetChildren() do
@@ -97,7 +102,7 @@ function Suggest.hide(session)
 		end
 	end
 
-	if typeof(refs.suggShadow) == "Instance" then
+	if typeof(refs.suggShadow) == "Instance" and refs.suggShadow:IsA("ImageLabel") then
 		refs.suggShadow.Visible = not session.isClosing
 		Tween.to(refs.suggShadow, { ImageTransparency = 1 }, config.motion.listSmoothTime)
     end
@@ -109,14 +114,18 @@ function Suggest.hide(session)
 	}, config.motion.listSmoothTime)
 
 	task.delay(config.motion.exitFadeTime, function()
-		if token ~= session.suggestToken or typeof(suggList) ~= "Instance" then
+		if
+			token ~= session.suggestToken
+			or typeof(suggList) ~= "Instance"
+			or not suggList:IsA("ScrollingFrame")
+		then
 			return
         end
         
         session.suggestionsHiding = false
         suggList.Visible = false
         
-		if typeof(refs.suggShadow) == "Instance" then
+		if typeof(refs.suggShadow) == "Instance" and refs.suggShadow:IsA("ImageLabel") then
 			refs.suggShadow.Visible = false
 			refs.suggShadow.ImageTransparency = 1
         end

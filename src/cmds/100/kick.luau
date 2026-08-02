@@ -1,10 +1,10 @@
+--!strict
+
 --[[
 	@name kick
 	@author driftingAurora, dullflowerr, alias; kioukaii
 	@time June 23, 2026
 ]]
-
---!strict
 
 local Types = require("../../types/sharedTypes")
 
@@ -17,17 +17,17 @@ return table.freeze({
 	description = "Kicks the target player.",
 	server = "kickServer",
 	args = {
-		{
+		({
 			name = "target",
 			type = "player",
 			required = true,
 			suggestions = { "me" },
-		},
-		{
+		} :: Types.Argument),
+		({
 			name = "reason",
 			type = "string",
 			required = false,
 			default = "Kicked by a moderator.",
-		},
+		} :: Types.Argument),
 	},
 }) :: Definition

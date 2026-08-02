@@ -5,17 +5,17 @@
 ]]
 
 --// imports
-local imports = {
-	Math = require("../math"),
+local Imports = {
 	Placement = require("../../elements/misc/placement"),
+	Math = require("../math"),
 }
 
-local Tween = imports.Math.tween
+local Tween = Imports.Math.tween
 
 --// locals
 local function layoutMain(session, time, width, mainHeight, stackExtra, layoutSeq)
-	local refs = session.refs
 	local panel = session.config.panel
+	local refs = session.refs
 
 	local transparency = session.config.transparency
 
@@ -39,7 +39,7 @@ local function layoutMain(session, time, width, mainHeight, stackExtra, layoutSe
         refs.commandRow.ScrollingEnabled = true
         refs.commandRow.Visible = true
         
-		if typeof(refs.pillShadow) == "Instance" then
+		if typeof(refs.pillShadow) == "Instance" and refs.pillShadow:IsA("ImageLabel") then
 			refs.pillShadow.Visible = true
 			Tween.fade(refs.pillShadow, { ImageTransparency = transparency.shadow }, time)
         end
@@ -63,7 +63,12 @@ local function layoutMain(session, time, width, mainHeight, stackExtra, layoutSe
         Tween.to(refs.commandText, { TextTransparency = 1 }, time)
         
 		task.delay(time, function()
-			if session.layoutSeq == layoutSeq and not session.isExpanded and typeof(refs.commandRow) == "Instance" then
+			if
+				session.layoutSeq == layoutSeq
+				and not session.isExpanded
+				and typeof(refs.commandRow) == "Instance"
+				and refs.commandRow:IsA("ScrollingFrame")
+			then
 				refs.commandRow.Visible = false
 			end
 		end)
@@ -101,7 +106,7 @@ local function layoutAddChat(session, time, width, showAddChat, layoutSeq)
 
 				session.stackShadowHiding = false
 
-				if typeof(refs.stackShadow) == "Instance" then
+				if typeof(refs.stackShadow) == "Instance" and refs.stackShadow:IsA("ImageLabel") then
 					refs.stackShadow.ImageTransparency = 1
 					refs.stackShadow.Visible = true
 
@@ -115,7 +120,11 @@ local function layoutAddChat(session, time, width, showAddChat, layoutSeq)
 			return
 		end
 
-		if typeof(refs.addChatPill) == "Instance" and not refs.addChatPill.Visible then
+		if
+			typeof(refs.addChatPill) == "Instance"
+			and refs.addChatPill:IsA("TextButton")
+			and not refs.addChatPill.Visible
+		then
             refs.addChatPill.Size = UDim2.fromOffset(panel.addChatCollapsedWidth or panel.height, panel.height)
             refs.addChatPill.Position = position
             			
@@ -128,7 +137,7 @@ local function layoutAddChat(session, time, width, showAddChat, layoutSeq)
         session.stackShadowHiding = false
         refs.addChatPill.Visible = true
 		
-		if typeof(refs.stackShadow) == "Instance" then
+		if typeof(refs.stackShadow) == "Instance" and refs.stackShadow:IsA("ImageLabel") then
 			refs.stackShadow.Visible = true
 			Tween.fade(refs.stackShadow, { ImageTransparency = transparency.shadow }, time)
         end
@@ -154,7 +163,7 @@ local function layoutAddChat(session, time, width, showAddChat, layoutSeq)
 	local collapsing = not session.isExpanded
 	local fadeOutTime = collapsing and fadeTime or time
 
-	if typeof(refs.stackShadow) == "Instance" then
+	if typeof(refs.stackShadow) == "Instance" and refs.stackShadow:IsA("ImageLabel") then
 		session.stackShadowHiding = true
 		refs.stackShadow.Visible = true
 		Tween.fade(refs.stackShadow, { ImageTransparency = 1 }, fadeOutTime)
@@ -174,11 +183,11 @@ local function layoutAddChat(session, time, width, showAddChat, layoutSeq)
 			return
         end
         
-		if typeof(refs.addChatIcon) == "Instance" then
+		if typeof(refs.addChatIcon) == "Instance" and refs.addChatIcon:IsA("ImageLabel") then
 			refs.addChatIcon.ImageTransparency = 1
         end
         
-		if typeof(refs.addChatText) == "Instance" then
+		if typeof(refs.addChatText) == "Instance" and refs.addChatText:IsA("TextLabel") then
 			refs.addChatText.TextTransparency = 1
 		end
     end)
@@ -191,7 +200,11 @@ local function layoutAddChat(session, time, width, showAddChat, layoutSeq)
         session.stackShadowHiding = false
         local stillWanted = session.isExpanded and session.hasOutput and not session.hasSecondChat
         
-		if not stillWanted and typeof(refs.addChatPill) == "Instance" then
+		if
+			not stillWanted
+			and typeof(refs.addChatPill) == "Instance"
+			and refs.addChatPill:IsA("TextButton")
+		then
 			refs.addChatPill.Visible = false
 		end
 	end)
@@ -207,7 +220,7 @@ local function layoutSecond(session, time, width, showSecondChat, layoutSeq, mai
 		local rootTarget = { Size = UDim2.fromOffset(width, height) }
 
 		if not session.secondDetached then
-			local position = imports.Placement.attachedSecond(
+			local position = Imports.Placement.attachedSecond(
 				refs.root.Position,
 				refs.root,
 				mainHeight or session:mainHeight(),
@@ -224,7 +237,7 @@ local function layoutSecond(session, time, width, showSecondChat, layoutSeq, mai
         session.secondShadowHiding = false
         refs.SecondInputBox.Visible = true
         
-		if typeof(refs.secondShadow) == "Instance" then
+		if typeof(refs.secondShadow) == "Instance" and refs.secondShadow:IsA("ImageLabel") then
 			refs.secondShadow.Visible = true
 
 			Tween.fade(refs.secondShadow, { ImageTransparency = transparency.shadow }, time)
@@ -275,7 +288,7 @@ local function layoutSecond(session, time, width, showSecondChat, layoutSeq, mai
 		return
 	end
 
-    if typeof(refs.secondShadow) == "Instance" then
+    if typeof(refs.secondShadow) == "Instance" and refs.secondShadow:IsA("ImageLabel") then
         
 		session.secondShadowHiding = true
         refs.secondShadow.Visible = true
@@ -302,7 +315,7 @@ local function layoutSecond(session, time, width, showSecondChat, layoutSeq, mai
 	local rootTarget = { Size = UDim2.fromOffset(targetWidth, targetHeight) }
 
 	if closingToAdd then
-		rootTarget.Position = imports.Placement.attachedSecond(
+		rootTarget.Position = Imports.Placement.attachedSecond(
 			refs.root.Position,
 			refs.root,
 			session:mainHeight(),
@@ -325,20 +338,28 @@ local function layoutSecond(session, time, width, showSecondChat, layoutSeq, mai
         end
         
 		local stillWanted = session.isExpanded and session.hasSecondChat
-		if not stillWanted and typeof(refs.secondPill) == "Instance" then
+		if not stillWanted and typeof(refs.secondPill) == "Instance" and refs.secondPill:IsA("Frame") then
 			refs.secondPill.Visible = false
         end
         
-		if not stillWanted and typeof(refs.secondRoot) == "Instance" then
+		if not stillWanted and typeof(refs.secondRoot) == "Instance" and refs.secondRoot:IsA("Frame") then
 			refs.secondRoot.Visible = false
         end
         
 		session.secondShadowHiding = false
-		if not stillWanted and typeof(refs.secondShadow) == "Instance" then
+		if
+			not stillWanted
+			and typeof(refs.secondShadow) == "Instance"
+			and refs.secondShadow:IsA("ImageLabel")
+		then
 			refs.secondShadow.Visible = false
         end
         
-		if not stillWanted and typeof(refs.secondCommandRow) == "Instance" then
+		if
+			not stillWanted
+			and typeof(refs.secondCommandRow) == "Instance"
+			and refs.secondCommandRow:IsA("ScrollingFrame")
+		then
 			refs.secondCommandRow.Visible = false
 		end
 
@@ -377,7 +398,11 @@ function Shape.layout(session, duration, targetWidth)
 		layoutSecond(session, time, width, showSecondChat, layoutSeq, mainHeight)
 	end
 
-	if typeof(refs.suggList) == "Instance" and not session.suggestionsHiding then
+	if
+		typeof(refs.suggList) == "Instance"
+		and refs.suggList:IsA("ScrollingFrame")
+		and not session.suggestionsHiding
+	then
 		local suggestionWidth = refs.suggList.Parent == refs.secondRoot and session:activeWidth(2) or width
 
 		Tween.to(refs.suggList, {
@@ -415,7 +440,11 @@ function Shape.layoutDetachedSecond(session, duration, targetWidth)
 
 	layoutSecond(session, time, width, true, session.layoutSeq)
 
-	if typeof(session.refs.suggList) == "Instance" and session.refs.suggList.Parent == session.refs.secondRoot then
+	if
+		typeof(session.refs.suggList) == "Instance"
+		and session.refs.suggList:IsA("ScrollingFrame")
+		and session.refs.suggList.Parent == session.refs.secondRoot
+	then
 		Tween.to(session.refs.suggList, {
 			Size = UDim2.fromOffset(width, session.refs.suggList.Size.Y.Offset),
 		}, time)

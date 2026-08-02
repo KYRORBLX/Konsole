@@ -9,33 +9,36 @@
 --// imports
 local ConfigModule = require("../../config")
 
-local imports = {
+local Imports = {
 	Config = ConfigModule,
+
 	Controller = require("./elements/backend/controller"),
 	Formatter = require("./elements/backend/formatter"),
+
 	Result = require("./elements/backend/result"),
 	Text = require("./elements/misc/text"),
 }
 
---// types
-export type ConfigOverrides = ConfigModule.ConfigOverrides
-export type Config = ConfigModule.MergedConfig
+local Types = require("../../types/uiTypes")
 
-export type Client = any
+--// types
+export type ConfigOverrides = Types.ConfigOverrides
+export type Config = Types.Config
+export type Client = Types.Client
 
 --// public api
 local Render = {
-	Formatter = imports.Formatter,
-	Result = imports.Result,
-	Text = imports.Text,
+	Formatter = Imports.Formatter,
+	Result = Imports.Result,
+	Text = Imports.Text,
 }
 
 function Render.config(options: ConfigOverrides?): Config
-	return imports.Config.merge(options)
+	return Imports.Config.merge(options)
 end
 
 function Render.new(options: ConfigOverrides?): Client
-	return imports.Controller.new(imports.Config.merge(options))
+	return Imports.Controller.new(Imports.Config.merge(options))
 end
 
 return Render

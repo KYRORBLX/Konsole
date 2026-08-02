@@ -7,7 +7,7 @@
 ]]
 
 --// imports
-local imports = {
+local Imports = {
 	Players = game:GetService("Players"),
 }
 
@@ -22,38 +22,37 @@ export type Caller = Types.Caller
 
 --// locals
 local function findPlayers(token: string?, caller: Caller): { Player }
-    local query = string.lower(tostring(token or ""))
-    
+	local query = string.lower(tostring(token or ""))
+
 	if query == "me" and caller then
 		return { caller }
-    end
-    
+	end
+
 	if query == "all" or query == "*" then
-		return imports.Players:GetPlayers()
-    end
-    
+		return Imports.Players:GetPlayers()
+	end
+
 	if query == "others" then
-        local others: { Player } = {}
-        
-		for _, player in imports.Players:GetPlayers() do
+		local others: { Player } = {}
+
+		for _, player in Imports.Players:GetPlayers() do
 			if player ~= caller then
 				table.insert(others, player)
 			end
-        end
-        
+		end
+
 		return others
 	end
 
 	local matches: { Player } = {}
-    for _, player in imports.Players:GetPlayers() do
-        
+	for _, player in Imports.Players:GetPlayers() do
 		local name = string.lower(player.Name)
-        local display = string.lower(player.DisplayName)
-        
+		local display = string.lower(player.DisplayName)
+
 		if name == query or display == query then
 			return { player }
-        end
-        
+		end
+
 		if string.sub(name, 1, #query) == query or string.sub(display, 1, #query) == query then
 			table.insert(matches, player)
 		end
@@ -70,8 +69,8 @@ end
 local Arguments = {}
 
 function Arguments.tokenize(text: string?): { string }
-    local tokens: { string } = {}
-    
+	local tokens: { string } = {}
+
 	local source = tostring(text or "")
 	local cursor = 1
 
@@ -81,23 +80,21 @@ function Arguments.tokenize(text: string?): { string }
 			break
 		end
 
-        local char = string.sub(source, nextStart, nextStart)
-        
+		local char = string.sub(source, nextStart, nextStart)
+
 		if char == '"' or char == "'" then
-            local closing = string.find(source, char, nextStart + 1, true)
-            
+			local closing = string.find(source, char, nextStart + 1, true)
+
 			if closing then
 				table.insert(tokens, string.sub(source, nextStart + 1, closing - 1))
-                cursor = closing + 1
-                
+				cursor = closing + 1
 			else
 				table.insert(tokens, string.sub(source, nextStart + 1))
 				cursor = #source + 1
-            end
-            
+			end
 		else
-            local wordEnd = string.find(source, "%s", nextStart) or (#source + 1)
-            
+			local wordEnd = string.find(source, "%s", nextStart) or (#source + 1)
+
 			table.insert(tokens, string.sub(source, nextStart, wordEnd - 1))
 			cursor = wordEnd
 		end
@@ -107,8 +104,8 @@ function Arguments.tokenize(text: string?): { string }
 end
 
 function Arguments.split(text: string?): (string?, { string })
-    local tokens = Arguments.tokenize(text)
-    
+	local tokens = Arguments.tokenize(text)
+
 	local name = table.remove(tokens, 1)
 	return name, tokens
 end
@@ -117,54 +114,54 @@ Arguments.types = {
 	string = asString,
 
 	number = function(token: string): (boolean, any)
-        local value = tonumber(token)
-        
+		local value = tonumber(token)
+
 		if value == nil then
 			return false, `expected a number, got "{token}"`
-        end
-        
+		end
+
 		return true, value
 	end,
 
 	boolean = function(token: string): (boolean, any)
-        local lowered = string.lower(tostring(token or ""))
-        
+		local lowered = string.lower(tostring(token or ""))
+
 		if lowered == "true" or lowered == "yes" or lowered == "on" or lowered == "1" then
 			return true, true
-        end
-        
+		end
+
 		if lowered == "false" or lowered == "no" or lowered == "off" or lowered == "0" then
 			return true, false
-        end
-        
+		end
+
 		return false, `expected true or false, got "{token}"`
 	end,
 
 	player = function(token: string, caller: Caller): (boolean, any)
-        local matches = findPlayers(token, caller)
-        
+		local matches = findPlayers(token, caller)
+
 		if #matches == 0 then
 			return false, `no player matching "{token}"`
-        end
-        
+		end
+
 		if #matches > 1 then
 			return false, `"{token}" matches more than one player`
-        end
-        
+		end
+
 		return true, matches[1]
 	end,
 
 	players = function(token: string, caller: Caller): (boolean, any)
-        local matches = findPlayers(token, caller)
-        
+		local matches = findPlayers(token, caller)
+
 		if #matches == 0 then
 			if string.lower(tostring(token or "")) == "others" then
 				return false, "no other players"
-            end
-            
+			end
+
 			return false, `no players matching "{token}"`
-        end
-        
+		end
+
 		return true, matches
 	end,
 } :: Converters
@@ -178,21 +175,20 @@ function Arguments.parse(argDefinitions: { Argument }?, tokens: { string }, call
 		end
 
 		local definition = definitions[index]
-        local token = tokens[tokenIndex]
-        
+		local token = tokens[tokenIndex]
+
 		local optional = definition.required == false or definition.default ~= nil
 
 		if token == nil or token == "" then
-            if definition.default ~= nil then
-                
+			if definition.default ~= nil then
 				local ok, values = parseFrom(index + 1, tokenIndex)
 				if not ok then
 					return false, values
 				end
 
 				values[index] = definition.default
-                values.n = math.max(values.n or 0, index)
-                
+				values.n = math.max(values.n or 0, index)
+
 				return true, values
 			end
 
@@ -204,18 +200,17 @@ function Arguments.parse(argDefinitions: { Argument }?, tokens: { string }, call
 		end
 
 		local typeName = string.lower(tostring(definition.type or "string"))
-        local convert: Converter = Arguments.types[typeName] or asString
-        
-        local ok, value = convert(token, caller)
-        
+		local convert: Converter = Arguments.types[typeName] or asString
+
+		local ok, value = convert(token, caller)
+
 		if not ok then
-            if optional and index < #definitions then
-                local skipped, values = parseFrom(index + 1, tokenIndex)
-                
+			if optional and index < #definitions then
+				local skipped, values = parseFrom(index + 1, tokenIndex)
+
 				if skipped then
 					if definition.default ~= nil then
-                        
-                        values[index] = definition.default
+						values[index] = definition.default
 						values.n = math.max(values.n or 0, index)
 					end
 
@@ -226,15 +221,15 @@ function Arguments.parse(argDefinitions: { Argument }?, tokens: { string }, call
 			return false, `argument "{definition.name or index}": {value}`
 		end
 
-        local parsed, values = parseFrom(index + 1, tokenIndex + 1)
-        
+		local parsed, values = parseFrom(index + 1, tokenIndex + 1)
+
 		if not parsed then
 			return false, values
 		end
 
 		values[index] = value
-        values.n = math.max(values.n or 0, index)
-        
+		values.n = math.max(values.n or 0, index)
+
 		return true, values
 	end
 

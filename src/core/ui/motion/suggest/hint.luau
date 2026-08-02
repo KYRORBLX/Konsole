@@ -5,11 +5,11 @@
 ]]
 
 --// imports
-local imports = {
+local Imports = {
 	Math = require("../math"),
 }
 
-local Tween = imports.Math.tween
+local Tween = Imports.Math.tween
 
 --// locals
 local function rowPosition(offset)
@@ -20,7 +20,7 @@ end
 local Hint = {}
 
 function Hint.snap(_session, row, offset)
-	if typeof(row) == "Instance" then
+	if typeof(row) == "Instance" and row:IsA("GuiObject") then
 		row.Position = rowPosition(offset)
 	end
 end

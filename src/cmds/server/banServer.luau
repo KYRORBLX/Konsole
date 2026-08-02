@@ -1,12 +1,12 @@
+--!strict
+
 --[[
 	@name ban
 	@author driftingAurora, dullflowerr, alias; kioukaii
 	@time July 3, 2026
 ]]
 
---!strict
-
-local imports = {
+local Imports = {
 	Players = game:GetService("Players"),
 }
 
@@ -26,7 +26,7 @@ function Server.unban(userId: number): boolean
 	return hadBan
 end
 
-imports.Players.PlayerAdded:Connect(function(player)
+Imports.Players.PlayerAdded:Connect(function(player)
 	local reason = bans[player.UserId]
 	if reason then
 		player:Kick(reason)

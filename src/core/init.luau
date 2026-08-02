@@ -7,15 +7,15 @@
 ]]
 
 --// imports
-local imports = {
-	shared = require("@self/shared"),
-	ui = require("@self/ui"),
+local Imports = {
+	Shared = require("@self/shared"),
+	UI = require("@self/ui"),
 }
 
 --// public api
-local core = {
-	shared = imports.shared,
-	ui = imports.ui,
+local Core = {
+	shared = Imports.Shared,
+	ui = Imports.UI,
 }
 
-return table.freeze(core)
+return table.freeze(Core)

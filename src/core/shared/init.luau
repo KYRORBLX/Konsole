@@ -7,23 +7,25 @@
 ]]
 
 --// imports
-local imports = {
+local Imports = {
 	Arguments = require("@self/kommand/arguments"),
 	Ranks = require("@self/dispatch/ranks"),
 	Table = require("@self/kommand/table"),
+
 	Dispatch = require("@self/dispatch"),
 	Kommand = require("@self/kommand"),
 	Chat = require("@self/chat"),
 }
 
 --// public api
-local shared = {
-	arguments = imports.Arguments,
-	chat = imports.Chat,
-	dispatch = imports.Dispatch,
-	kommand = imports.Kommand,
-	ranks = imports.Ranks,
-	table = imports.Table,
+local Shared = {
+	arguments = Imports.Arguments,
+	dispatch = Imports.Dispatch,
+	kommand = Imports.Kommand,
+
+	ranks = Imports.Ranks,
+	table = Imports.Table,
+	chat = Imports.Chat,
 }
 
-return table.freeze(shared)
+return table.freeze(Shared)

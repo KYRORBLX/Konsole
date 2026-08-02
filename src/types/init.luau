@@ -7,9 +7,9 @@
 ]]
 
 --// imports
-local types = {
-	uiTypes = require("@self/uiTypes"),
-	sharedTypes = require("@self/sharedTypes"),
+local Types = {
+	SharedTypes = require("@self/sharedTypes"),
+	UITypes = require("@self/uiTypes"),
 }
 
-return table.freeze(types)
+return table.freeze(Types)

@@ -7,23 +7,25 @@
 ]]
 
 --// imports
-local imports = {
+local Imports = {
 	RunService = game:GetService("RunService"),
 	TextChatService = game:GetService("TextChatService"),
 
 	Config = require("../../config"),
 }
 
+local Types = require("../../types/sharedTypes")
+
 --// types
-export type OpenCallback = () -> ()
-export type Disconnect = () -> ()
+export type OpenCallback = Types.OpenCallback
+export type Disconnect = Types.Disconnect
 
 --// locals
 local connection: RBXScriptConnection? = nil
 
 local function command(): TextChatCommand
-	local config = imports.Config.groups.input
-	local existing = imports.TextChatService:FindFirstChild(config.command)
+	local config = Imports.Config.groups.input
+	local existing = Imports.TextChatService:FindFirstChild(config.command)
 
 	if existing and existing:IsA("TextChatCommand") then
 		
@@ -40,7 +42,7 @@ local function command(): TextChatCommand
 	
 	local created = Instance.new("TextChatCommand")
 
-	created.Parent = imports.TextChatService
+	created.Parent = Imports.TextChatService
 	created.Name = config.command
 	
 	created.PrimaryAlias = config.alias
@@ -65,7 +67,7 @@ end
 function Chat.bindKonsoleOpen(callback: OpenCallback): Disconnect
 	Chat.unbindKonsoleOpen()
 
-	if not imports.RunService:IsClient() then
+	if not Imports.RunService:IsClient() then
 		return function() end
 	end
 
