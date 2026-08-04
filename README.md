@@ -134,11 +134,12 @@ If you don't want some (or all) of the built-ins, call one of these before anyth
 
 ```luau
 Konsole.excludeBuiltins("kick", "ban", "unban", "kill") -- drops just these
-Konsole.excludeAllBuiltins() -- drops all built-ins
+Konsole.excludeAllBuiltins() -- drops all built-ins except cmds/clear
+Konsole.excludeAllBuiltins(true) -- drops literally everything, including cmds/clear
 Konsole.includeBuiltins("ban", "tp") -- keeps only ban and tp, drops the rest
 ```
 
-`cmds` and `clear` are never dropped by any of these — they're the only way to see or recover from a stripped command list once everything else is gone. `excludeBuiltins`/`excludeAllBuiltins` and `includeBuiltins` can't be used together.
+`excludeAllBuiltins()` spares `cmds` and `clear` by default — they're the only way to see or recover from a stripped command list once everything else is gone. Pass `true` to drop them too. `excludeBuiltins`/`includeBuiltins` can also drop them individually if you explicitly name them (e.g. `Konsole.excludeBuiltins("cmds")`); that's on you either way. `excludeBuiltins`/`excludeAllBuiltins` and `includeBuiltins` can't be used together.
 
 ## Commands
 
@@ -546,7 +547,7 @@ Konsole.define(definition)
 Konsole.implement(name, callback)
 Konsole.run(text)
 Konsole.excludeBuiltins(...names)
-Konsole.excludeAllBuiltins()
+Konsole.excludeAllBuiltins(includeMandatory?)
 Konsole.includeBuiltins(...names)
 
 Konsole.setRank(userId, rank)

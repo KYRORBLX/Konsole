@@ -193,6 +193,9 @@ function Kommand.suggestions(): { string }
 
 			local firstArg = definition.args[1]
 			local argSuggestions = type(firstArg) == "table" and firstArg.suggestions or nil
+			if type(argSuggestions) == "function" then
+				argSuggestions = argSuggestions()
+			end
 
 			if type(argSuggestions) == "table" then
 				for _, name in names do

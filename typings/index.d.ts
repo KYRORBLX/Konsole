@@ -12,21 +12,21 @@ declare namespace Konsole {
 				type?: "string";
 				default?: string;
 				required?: boolean;
-				suggestions?: string[] | string;
+				suggestions?: string[] | string | (() => string[]);
 		}
 		| {
 				name?: string;
 				type: "number";
 				default?: number;
 				required?: boolean;
-				suggestions?: `${number}`[] | `${number}`;
+				suggestions?: `${number}`[] | `${number}` | (() => `${number}`[]);
 		}
 		| {
 				name?: string;
 				type: "boolean";
 				default?: boolean;
 				required?: boolean;
-				suggestions?: BooleanArgument[] | BooleanArgument;
+				suggestions?: BooleanArgument[] | BooleanArgument | (() => BooleanArgument[]);
 		}
 		| {
 				name?: string;
@@ -485,7 +485,7 @@ declare namespace Konsole {
 		define: <const T extends readonly Argument[]>(
 			definition: Definition<T>,
 		) => Command;
-		excludeAllBuiltins: () => void;
+		excludeAllBuiltins: (includeMandatory?: boolean) => void;
 		excludeBuiltins: (...names: Array<BuiltinName>) => void;
 		getRank: (entity: unknown) => number;
 		host: (serverImplementations?: Record<string, Run>) => RemoteFunction | undefined;
