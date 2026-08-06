@@ -259,6 +259,7 @@ Built-in types:
 - `boolean`: accepts `true`, `false`, `yes`, `no`, `on`, `off`, `1`, `0`
 - `player`: one player
 - `players`: one or more players
+- `list`: one or more values from a fixed list of `suggestions` you provide
 
 Player shortcuts:
 
@@ -272,6 +273,18 @@ Rules for a `players` list:
 
 - `all`, `*`, and `others` can only ever be the *only* entry in the list. Once one of them is picked, it can't be combined with anything else, and typing/picking another name is blocked. Picking a normal name first also blocks you from adding `all`/`others`/`*` afterward.
 - The same player can be listed more than once — duplicates aren't blocked, since typing a name you've already picked isn't a mistake worth stopping you for. Instead, the suggestion dropdown labels an already-picked name with a grey *dupe* tag so you can see it's redundant. `me` and your own name count as the same player for this — if you've already added yourself by name, `me` gets tagged too, and vice versa.
+
+`list` is the same bracketed `[a, b]` UI as `players`, but for anything else you want a fixed, author-defined set of pickable values for — item definition keys, team names, rank names, whatever your command needs multiple of. Unlike `players`, a `list` argument *requires* a `suggestions` field, and every entry typed must match one of those suggestions exactly (case-insensitive) — free text isn't accepted:
+
+```luau
+{
+	name = "items",
+	type = "list",
+	suggestions = { "sword", "shield", "potion" },
+}
+```
+
+Duplicates get the same grey *dupe* tag treatment as `players` (there's no `me`/own-name aliasing here, since a `list` isn't players).
 
 Konsole also uses argument metadata for the UI. When you type a command with args, it shows argument chips. Fixed-token args like `number` and `boolean` jump to the next chip when you press space. Bad argument types turn red while typing.
 
@@ -296,6 +309,8 @@ For a `players` argument specifically, the suggestion list adjusts as you go:
 - Once any player is picked, `all`/`others`/`*` disappear from the list, since they can no longer be picked.
 - Picking a name from the list appends it and a comma automatically, so you can keep picking more. Picking `all`/`others`/`*` instead closes the list immediately (no trailing comma), since nothing else can follow it.
 - A name already in the list still appears (you can add it again on purpose), but it's marked with a grey *dupe* tag as a heads-up.
+
+A `list` argument uses the same bracketed picking behavior as `players` (comma-append, dupe tag), except it draws its suggestions from the `suggestions` you provide instead of online players, and it has no `all`/`others`/`*` concept.
 
 Use Tab to accept a suggestion. Use Up and Down to move through suggestions. Use Left and Right to move between structured argument chips when your cursor is at the edge of a chip.
 

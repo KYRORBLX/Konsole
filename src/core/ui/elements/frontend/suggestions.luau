@@ -185,7 +185,8 @@ function Suggestions.attach(Session)
 		if chip and type(chip.arg) == "table" then
 			local source = Imports.Providers.resolve(chip.arg)
 
-			if chip.arg.type == "players" and next(confirmedPlayerNames(chip.box.Text)) then
+			local isPlayerList = chip.arg.type == "players" or (chip.arg.type == "player" and chip.arg.array == true)
+			if isPlayerList and next(confirmedPlayerNames(chip.box.Text)) then
 				local filtered = {}
 				for _, entry in source do
 					if not isCollectiveKeyword(entry) then
@@ -334,14 +335,18 @@ function Suggestions.attach(Session)
 		local chip = if type(self.focusedChip) == "function" then self:focusedChip() else self.activeChip
 		local dupeNames = {}
 
-		if chip and type(chip.arg) == "table" and chip.arg.type == "players" then
+		if chip and type(chip.arg) == "table" and chip.arg.type ~= "boolean" then
+			-- dupe suggestions get flagged no matter what type/shape the argument is,
+			-- except booleans -- repeating true/false isn't a meaningful duplicate
 			dupeNames = confirmedPlayerNames(chip.box.Text)
 
-			-- "me" and the local player's own name refer to the same entry
-			local localName = string.lower(Imports.Players.LocalPlayer.Name)
-			if dupeNames["me"] or dupeNames[localName] then
-				dupeNames["me"] = true
-				dupeNames[localName] = true
+			if chip.arg.type == "players" or chip.arg.type == "player" then
+				-- "me" and the local player's own name refer to the same entry
+				local localName = string.lower(Imports.Players.LocalPlayer.Name)
+				if dupeNames["me"] or dupeNames[localName] then
+					dupeNames["me"] = true
+					dupeNames[localName] = true
+				end
 			end
 		end
 
@@ -462,7 +467,26 @@ function Suggestions.attach(Session)
 		local chip = if type(self.focusedChip) == "function" then self:focusedChip() else self.activeChip
 		if chip and typeof(chip.box) == "Instance" and chip.box:IsA("TextBox") then
 
-			if chip.arg and chip.arg.type == "players" then
+			-- a preset group suggestion arrives as a full bracket literal, e.g. "[debug, godmode]";
+			-- it replaces the whole field instead of appending as one more comma entry
+			local presetInner = string.match(suggestion, "^%[(.*)%]$")
+
+			if chip.arg and presetInner and chip.arg.array == true then
+				chip.box.Text = presetInner
+				chip.box.CursorPosition = #presetInner + 1
+				chip.box:CaptureFocus()
+
+				self:hideSuggestions()
+
+				local chips = self.channelChips[chip.channel] or {}
+				if chip.index < #chips then
+					self:focusChip(chip.channel, chip.index + 1)
+				end
+
+				return true
+			end
+
+			if chip.arg and (chip.arg.type == "players" or chip.arg.array == true) then
 				if not self:playersEntryAllowed(chip.box.Text, suggestion) then
 					return false
 				end

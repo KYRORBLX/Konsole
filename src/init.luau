@@ -42,13 +42,15 @@ local function registerBuiltins(): ()
 	registered = true
 
 	local excluded = builtinsExcluded
-	if builtinsIncluded then
-		excluded = {}
+	local included = builtinsIncluded
+	if included then
+		local narrowed: { [string]: boolean } = {}
 		for _, definition in Imports.Cmds.definitions do
-			if not builtinsIncluded[definition.name] then
-				excluded[definition.name] = true
+			if not included[definition.name] then
+				narrowed[definition.name] = true
 			end
 		end
+		excluded = narrowed
 	end
 
 	Imports.Cmds.register(Imports.Core.shared.kommand, excluded)

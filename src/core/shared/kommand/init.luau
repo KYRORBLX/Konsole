@@ -30,13 +30,22 @@ local function normalize(value: any): string
 	return string.lower(tostring(value or ""))
 end
 
-local function quoteIfNeeded(value: any): string
+local function quoteIfNeeded(value: any, isArray: boolean?): string
 	local text = tostring(value or "")
 	if text == "" then
 		return text
 	end
 
-	if string.find(text, "%s") then
+	-- a "[...]" bracket literal already tokenizes as a single token, so quoting it
+	-- would just wrap the brackets in redundant quotes
+	local isBracketLiteral = string.sub(text, 1, 1) == "[" and string.sub(text, -1) == "]"
+
+	if not isBracketLiteral and string.find(text, "%s") then
+		-- array args never get quoted strings; a spaced value becomes its own bracket literal
+		if isArray then
+			return "[" .. text .. "]"
+		end
+
 		return string.format("%q", text)
 	end
 
@@ -46,6 +55,63 @@ end
 local function notify()
 	for _, watcher in watchers do
 		task.spawn(watcher)
+	end
+end
+
+-- a preset group suggestion (e.g. { "debug", "godmode" }) flattens into a single
+-- completable bracket literal, "[debug, godmode]", before it ever hits replication
+local function flattenSuggestion(value: any): string
+	if type(value) == "table" then
+		local parts = {}
+		for _, entry in value do
+			table.insert(parts, tostring(entry))
+		end
+		return "[" .. table.concat(parts, ", ") .. "]"
+	end
+
+	return tostring(value or "")
+end
+
+local function normalizeArgSuggestions(args: { any })
+	for _, arg in args do
+		if type(arg) ~= "table" then
+			continue
+		end
+
+		-- boolean args always suggest true/false; a custom suggestions list
+		-- doesn't make sense when there are only two possible values
+		if arg.type == "boolean" then
+			arg.suggestions = { "true", "false" }
+			continue
+		end
+
+		if type(arg.suggestions) == "table" then
+			local flat = {}
+			local seen: { [string]: boolean } = {}
+
+			local function push(text: string)
+				local key = string.lower(text)
+				if text ~= "" and not seen[key] then
+					seen[key] = true
+					table.insert(flat, text)
+				end
+			end
+
+			for _, entry in arg.suggestions do
+				-- a preset group is offered whole (the bracket literal) as well as
+				-- spread out, one suggestion per value, deduped against each other
+				if type(entry) == "table" then
+					push(flattenSuggestion(entry))
+					for _, value in entry do
+						push(tostring(value))
+					end
+				else
+					push(flattenSuggestion(entry))
+				end
+			end
+
+			arg.suggestions = flat
+		end
 	end
 end
 
@@ -95,6 +161,8 @@ function Kommand.define(definition: Definition): Command
 
 		aliases = {},
 	}
+
+	normalizeArgSuggestions(normalized.args)
 
 	for _, alias in definition.aliases or {} :: { string } do
 		table.insert(normalized.aliases, normalize(alias))
@@ -192,6 +260,7 @@ function Kommand.suggestions(): { string }
 			end
 
 			local firstArg = definition.args[1]
+			local isArray = type(firstArg) == "table" and firstArg.array == true
 			local argSuggestions = type(firstArg) == "table" and firstArg.suggestions or nil
 			if type(argSuggestions) == "function" then
 				argSuggestions = argSuggestions()
@@ -200,7 +269,7 @@ function Kommand.suggestions(): { string }
 			if type(argSuggestions) == "table" then
 				for _, name in names do
 					for _, suggestion in argSuggestions do
-						pushUnique(suggestions, seen, name .. " " .. quoteIfNeeded(suggestion))
+						pushUnique(suggestions, seen, name .. " " .. quoteIfNeeded(suggestion, isArray))
 					end
 				end
 			end

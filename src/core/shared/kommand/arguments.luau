@@ -84,6 +84,24 @@ local function dedupe(players: { Player }): { Player }
 	return result
 end
 
+local function bracketEntries(raw: string): { string }?
+	if string.sub(raw, 1, 1) ~= "[" then
+		return nil
+	end
+
+	local inner = string.gsub(string.gsub(raw, "^%[", ""), "%]$", "")
+	local entries = {}
+
+	for entry in string.gmatch(inner, "[^,]+") do
+		local trimmed = string.match(entry, "^%s*(.-)%s*$") or entry
+		if trimmed ~= "" then
+			table.insert(entries, trimmed)
+		end
+	end
+
+	return entries
+end
+
 --// public api
 local Arguments = {}
 
@@ -184,37 +202,33 @@ Arguments.types = {
 
 	players = function(token: string, caller: Caller): (boolean, any)
 		local raw = tostring(token or "")
+		local entries = bracketEntries(raw)
 
-		if string.sub(raw, 1, 1) == "[" then
-			local inner = string.gsub(string.gsub(raw, "^%[", ""), "%]$", "")
-
+		if entries then
 			local matches: { Player } = {}
 			local entryCount = 0
 			local sawCollective = false
 
-			for entry in string.gmatch(inner, "[^,]+") do
-				local trimmed = string.match(entry, "^%s*(.-)%s*$") or entry
-				if trimmed ~= "" then
-					entryCount += 1
-					local collective = isCollectiveKeyword(trimmed)
+			for _, trimmed in entries do
+				entryCount += 1
+				local collective = isCollectiveKeyword(trimmed)
 
-					if collective then
-						sawCollective = true
-					end
+				if collective then
+					sawCollective = true
+				end
 
-					local entryMatches = findPlayers(trimmed, caller)
+				local entryMatches = findPlayers(trimmed, caller)
 
-					if #entryMatches == 0 then
-						return false, `no player matching "{trimmed}"`
-					end
+				if #entryMatches == 0 then
+					return false, `no player matching "{trimmed}"`
+				end
 
-					if #entryMatches > 1 and not collective then
-						return false, `"{trimmed}" matches more than one player`
-					end
+				if #entryMatches > 1 and not collective then
+					return false, `"{trimmed}" matches more than one player`
+				end
 
-					for _, player in entryMatches do
-						table.insert(matches, player)
-					end
+				for _, player in entryMatches do
+					table.insert(matches, player)
 				end
 			end
 
@@ -244,6 +258,29 @@ Arguments.types = {
 		return true, dedupe(matches)
 	end,
 } :: Converters
+
+function Arguments.parseArray(token: string, typeName: string, caller: Caller): (boolean, any)
+	local raw = tostring(token or "")
+	local entries: { string } = bracketEntries(raw) or { raw }
+	local convert: Converter = Arguments.types[typeName] or asString
+
+	local values: { any } = {}
+	for _, entry in entries do
+		local ok, value = convert(entry, caller)
+
+		if not ok then
+			return false, value
+		end
+
+		table.insert(values, value)
+	end
+
+	if #values == 0 then
+		return false, "no values given"
+	end
+
+	return true, values
+end
 
 function Arguments.parse(argDefinitions: { Argument }?, tokens: { string }, caller: Caller): (boolean, any)
 	local definitions: { Argument } = if type(argDefinitions) == "table" then argDefinitions else {}
@@ -279,9 +316,14 @@ function Arguments.parse(argDefinitions: { Argument }?, tokens: { string }, call
 		end
 
 		local typeName = string.lower(tostring(definition.type or "string"))
-		local convert: Converter = Arguments.types[typeName] or asString
 
-		local ok, value = convert(token, caller)
+		local ok, value
+		if definition.array then
+			ok, value = Arguments.parseArray(token, typeName, caller)
+		else
+			local convert: Converter = Arguments.types[typeName] or asString
+			ok, value = convert(token, caller)
+		end
 
 		if not ok then
 			if optional and index < #definitions then

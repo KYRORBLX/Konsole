@@ -85,6 +85,8 @@ end
 
 local function argLabel(arg, index)
 	local name = tostring(arg.name or ("arg" .. index))
+	-- array args get their brackets drawn as separate labels around the box, so the
+	-- placeholder itself must stay bracket-free or it renders nested as "[ [] ]"
 	local typeName = string.lower(tostring(arg.type or "string"))
 	local optional = arg.required == false or arg.default ~= nil
 
@@ -102,12 +104,17 @@ local function quoteIfNeeded(value)
 end
 
 local function fixedTokenArg(arg)
+	if arg.array == true then
+		return false
+	end
+
 	local typeName = string.lower(tostring(arg.type or "string"))
 	return typeName == "number" or typeName == "boolean"
 end
 
 local function playersListArg(arg)
-	return string.lower(tostring(arg.type or "string")) == "players"
+	local typeName = string.lower(tostring(arg.type or "string"))
+	return typeName == "players" or arg.array == true
 end
 
 local isCollectiveKeyword = Imports.Arguments.isCollectiveKeyword
@@ -155,6 +162,11 @@ local function argValid(arg, text)
 	end
 
 	local typeName = string.lower(tostring(arg.type or "string"))
+
+	if arg.array then
+		local ok = Imports.Arguments.parseArray("[" .. text .. "]", typeName, Imports.Players.LocalPlayer)
+		return ok == true
+	end
 
 	local convert = Imports.Arguments.types[typeName]
 
@@ -368,6 +380,16 @@ function Hints.attach(Session)
 		for index, arg in args do
 			local name, typeName = argLabel(arg, index)
 
+			-- number/boolean array args can name each position (e.g. "gridX, gridY")
+			-- instead of showing the bare type as a placeholder
+			local labelList = (arg.array == true and type(arg.labels) == "table" and #arg.labels > 0)
+				and arg.labels
+				or nil
+
+			if labelList then
+				typeName = table.concat(labelList, ", ")
+			end
+
 			local frame = Imports.View.make("Frame", {
 
 				BackgroundTransparency = 1,
@@ -441,6 +463,19 @@ function Hints.attach(Session)
 			local bracketOpen = isPlayersList and bracketLabel("[", 2) or nil
 			local bracketClose
 
+			-- the box and its ghost continuation are manually positioned inside this
+			-- group instead of relying on UIListLayout spacing, so the ghost sits
+			-- immediately at the cursor with zero gap instead of a full item-padding gap
+			local valueGroup = Imports.View.make("Frame", {
+
+				BackgroundTransparency = 1,
+				BorderSizePixel = 0,
+				LayoutOrder = isPlayersList and 3 or 2,
+
+				AutomaticSize = Enum.AutomaticSize.X,
+				Size = UDim2.fromOffset(0, panel.hintHeight or 20),
+			}, frame) :: Frame
+
 			local box = Imports.View.make("TextBox", {
 
 				PlaceholderColor3 = colors.hintGhost or colors.mutedText,
@@ -454,28 +489,77 @@ function Hints.attach(Session)
 
 				TextSize = layout.hintTextSize or 13,
 				ZIndex = row.ZIndex + 1,
-				LayoutOrder = isPlayersList and 3 or 2,
 
 				MultiLine = false,
 
 				PlaceholderText = typeName,
 				Name = "Value",
 				Text = "",
+				Position = UDim2.fromOffset(0, 0),
 
 				AutomaticSize = Enum.AutomaticSize.None,
 				TextXAlignment = Enum.TextXAlignment.Left,
 				TextYAlignment = Enum.TextYAlignment.Center,
 				Size = UDim2.fromOffset(6, panel.hintHeight or 20),
-			}, frame) :: TextBox
+			}, valueGroup) :: TextBox
+
+			-- labels not yet reached (no comma typed for them yet) stay visible as a
+			-- ghost continuation right after the box, so they don't just vanish once
+			-- the user starts typing the first entry
+			local remainingLabel = nil :: TextLabel?
+
+			if labelList then
+				remainingLabel = Imports.View.make("TextLabel", {
+
+					BackgroundTransparency = 1,
+					TextTransparency = 1,
+
+					TextColor3 = colors.hintGhost or colors.mutedText,
+					Font = config.font.mono,
+
+					TextSize = layout.hintTextSize or 13,
+					ZIndex = row.ZIndex + 1,
+					Active = true,
+
+					Text = "",
+					Name = "Remaining",
+					Position = UDim2.fromOffset(0, 0),
+
+					AutomaticSize = Enum.AutomaticSize.X,
+					TextYAlignment = Enum.TextYAlignment.Center,
+					Size = UDim2.fromOffset(0, panel.hintHeight or 20),
+				}, valueGroup) :: TextLabel
+			end
 
 			if isPlayersList then
-				bracketClose = bracketLabel("]", 4)
+				bracketClose = bracketLabel("]", 5)
+			end
+
+			-- only the label for the slot currently being typed shows, and only until
+			-- that slot has a character in it -- not the whole remaining list at once
+			local function remainingLabelsText(text)
+				if not labelList or tailSegment(text) ~= "" then
+					return ""
+				end
+
+				local currentIndex = 1
+				for _ in string.gmatch(text, ",") do
+					currentIndex += 1
+				end
+
+				return labelList[currentIndex] or ""
 			end
 
 			local function fitValue()
 				local source = box.Text ~= "" and box.Text or typeName
+				local boxWidth = math.max(2, valueWidth(config, source))
 
-				box.Size = UDim2.fromOffset(math.max(2, valueWidth(config, source)), panel.hintHeight or 20)
+				box.Size = UDim2.fromOffset(boxWidth, panel.hintHeight or 20)
+
+				if remainingLabel then
+					remainingLabel.Text = box.Text ~= "" and remainingLabelsText(box.Text) or ""
+					remainingLabel.Position = UDim2.fromOffset(boxWidth, 0)
+				end
 
 				self:queueVisibleWidthRefresh(channel)
 			end
@@ -499,6 +583,7 @@ function Hints.attach(Session)
 
 			track(box:GetPropertyChangedSignal("Text"):Connect(function()
 				local currentText = box.Text
+				local grew = #currentText > #previousText
 
 				if
 					previousText ~= ""
@@ -533,22 +618,38 @@ function Hints.attach(Session)
 					local text = box.Text
 					local lastChar = string.sub(text, -1)
 
-					if lastChar == "," or lastChar == "]" then
+					-- only a single space is allowed, and only right after a
+					-- confirmed comma -- no leading space, no runs of spaces
+					if grew and lastChar == " " then
+						local prevChar = string.sub(text, -2, -2)
+						if prevChar ~= "," then
+							box.Text = string.sub(text, 1, -2)
+							return
+						end
+					end
+
+					if grew and (lastChar == "," or lastChar == "]") then
 						local body = string.sub(text, 1, -2)
 						local segment = tailSegment(body)
 
+						local typeName = string.lower(tostring(arg.type or "string"))
+						local isPlayerType = typeName == "players" or typeName == "player"
+
 						local ok = segment ~= ""
-						local collective = ok and isCollectiveKeyword(segment)
+						local collective = ok and isPlayerType and isCollectiveKeyword(segment)
 
 						if ok then
 							if collective then
 								ok = Imports.Arguments.types.players(segment, Imports.Players.LocalPlayer) == true
-							else
+							elseif isPlayerType then
 								ok = Imports.Arguments.types.player(segment, Imports.Players.LocalPlayer) == true
+							else
+								local convert = Imports.Arguments.types[typeName]
+								ok = type(convert) ~= "function" or convert(segment, Imports.Players.LocalPlayer) == true
 							end
 						end
 
-						if ok then
+						if ok and isPlayerType then
 							ok = self:playersEntryAllowed(body, segment)
 						end
 
@@ -617,6 +718,7 @@ function Hints.attach(Session)
 				arg = arg,
 				bracketOpen = bracketOpen,
 				bracketClose = bracketClose,
+				remaining = remainingLabel,
 			})
 		end
 	end
@@ -650,6 +752,10 @@ function Hints.attach(Session)
 			if chip.bracketOpen then
 				Imports.Hint.text(self, chip.bracketOpen, 0)
 				Imports.Hint.text(self, chip.bracketClose, 0)
+			end
+
+			if chip.remaining then
+				Imports.Hint.text(self, chip.remaining, 0)
 			end
 		end
 	end

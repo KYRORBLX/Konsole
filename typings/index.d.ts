@@ -2,21 +2,37 @@
 
 declare namespace Konsole {
 
-	type BooleanArgument = `${boolean}` | "yes" | "no" | "on" | "off" | "1" | "0";
-
 	export type BuiltinName = "bring" | "clear" | "close" | "ranks" | "unban" | "cmds" | "kick" | "kill" | "ban" | "tp";
 
 	export type Argument =
 		| {
 				name?: string;
 				type?: "string";
+				array?: boolean;
 				default?: string;
 				required?: boolean;
-				suggestions?: readonly string[] | string | (() => readonly string[]);
+				suggestions?:
+					| readonly (string | readonly string[])[]
+					| string
+					| (() => readonly (string | readonly string[])[]);
 		}
 		| {
 				name?: string;
 				type: "number";
+				array: true;
+				default?: number;
+				required?: boolean;
+				/** Names each position in the array, e.g. `["gridX", "gridY"]` shows as the `[gridX, gridY]` placeholder. */
+				labels?: readonly string[];
+				suggestions?:
+					| readonly (`${number}` | readonly `${number}`[])[]
+					| `${number}`
+					| (() => readonly (`${number}` | readonly `${number}`[])[]);
+		}
+		| {
+				name?: string;
+				type: "number";
+				array?: false;
 				default?: number;
 				required?: boolean;
 				suggestions?: readonly `${number}`[] | `${number}` | (() => readonly `${number}`[]);
@@ -24,13 +40,27 @@ declare namespace Konsole {
 		| {
 				name?: string;
 				type: "boolean";
+				array: true;
 				default?: boolean;
 				required?: boolean;
-				suggestions?: readonly BooleanArgument[] | BooleanArgument | (() => readonly BooleanArgument[]);
+				/** Names each position in the array, e.g. `["canBuild", "canKick"]` shows as the `[canBuild, canKick]` placeholder. */
+				labels?: readonly string[];
+				/** Always `true`/`false` — a boolean only has two values, so this can't be customized. */
+				suggestions?: never;
+		}
+		| {
+				name?: string;
+				type: "boolean";
+				array?: false;
+				default?: boolean;
+				required?: boolean;
+				/** Always `true`/`false` — a boolean only has two values, so this can't be customized. */
+				suggestions?: never;
 		}
 		| {
 				name?: string;
 				type: "player";
+				array?: boolean;
 				default?: never;
 				required?: boolean;
 				suggestions?: never;
@@ -92,12 +122,15 @@ declare namespace Konsole {
 
 	export type ExecuteResult = Outcome | RenderResult;
 
-	type ArgumentValue<T extends Argument> =
+	type BaseArgumentValue<T extends Argument> =
 		T["type"] extends "number" ? number :
 		T["type"] extends "boolean" ? boolean :
 		T["type"] extends "player" ? Player :
 		T["type"] extends "players" ? Player[] :
 		string;
+
+	type ArgumentValue<T extends Argument> =
+		T extends { array: true } ? BaseArgumentValue<T>[] : BaseArgumentValue<T>;
 
 	export type PanelPosition =
 		| UDim2

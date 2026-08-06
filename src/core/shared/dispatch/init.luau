@@ -245,6 +245,11 @@ local function buildPool(list: { Definition }): Pool
 						internString(pool, s)
 					end
 				end
+				if type(arg.labels) == "table" then
+					for _, label in arg.labels :: { string } do
+						internString(pool, label)
+					end
+				end
 			end
 		end
 	end
@@ -347,7 +352,11 @@ local argumentTypeNames: { [number]: string } = { "string", "number", "boolean",
 
 local function packArgument(arg: Argument, pool: Pool): string
 	local typeTag = (arg.type and argumentTypeTags[arg.type]) or 0
-	local flags = bit32.bor(bit32.lshift(typeTag, 1), if arg.required then 1 else 0)
+	local flags = bit32.bor(
+		bit32.lshift(typeTag, 1),
+		if arg.required then 1 else 0,
+		if arg.array then 16 else 0
+	)
 	local nameIdx = if arg.name then pool.index[arg.name] else 0
 	local out = string.pack("<H", nameIdx) .. string.pack("<B", flags) .. packAny(arg.default)
 
@@ -359,6 +368,8 @@ local function packArgument(arg: Argument, pool: Pool): string
 		out ..= string.pack("<B", 0)
 	end
 
+	out ..= packStringArray(arg.labels, pool)
+
 	return out
 end
 
@@ -366,8 +377,9 @@ local function unpackArgument(data: string, pos: number, pool: { string }): (Arg
 	local nameIdx, flags, suggestionsTag: number
 	nameIdx, pos = string.unpack("<H", data, pos)
 	flags, pos = string.unpack("<B", data, pos)
-	local argType = bit32.rshift(flags, 1)
+	local argType = bit32.band(bit32.rshift(flags, 1), 0x7)
 	local required = bit32.band(flags, 1)
+	local array = bit32.band(flags, 16)
 	local default
 	default, pos = unpackAny(data, pos)
 	suggestionsTag, pos = string.unpack("<B", data, pos)
@@ -381,12 +393,17 @@ local function unpackArgument(data: string, pos: number, pool: { string }): (Arg
 		suggestions = pool[idx]
 	end
 
+	local labels
+	labels, pos = unpackStringArray(data, pos, pool)
+
 	return {
 		name = if nameIdx ~= 0 then pool[nameIdx] else nil,
 		type = argumentTypeNames[argType],
+		array = array ~= 0,
 		default = default,
 		required = required == 1,
 		suggestions = suggestions,
+		labels = if #labels > 0 then labels else nil,
 	}, pos
 end
 
@@ -589,6 +606,45 @@ local function decodeDefinitions(payload: buffer): { Definition }
 	return out
 end
 
+local function flattenSuggestionEntry(value: any): string
+	if type(value) == "table" then
+		local parts = {}
+		for _, entry in value do
+			table.insert(parts, tostring(entry))
+		end
+		return "[" .. table.concat(parts, ", ") .. "]"
+	end
+
+	return tostring(value or "")
+end
+
+-- reactive (function) suggestions can't be sent over the wire, so they're
+-- re-evaluated here into a flat string list every time the schema replicates
+local function resolveArgs(args: { Argument }): { Argument }
+	local out = {}
+
+	for i, arg in args do
+		if type(arg.suggestions) == "function" then
+			local copy = table.clone(arg)
+			local succeeded, result = pcall(arg.suggestions)
+
+			local flat = {}
+			if succeeded and type(result) == "table" then
+				for _, entry in result do
+					table.insert(flat, flattenSuggestionEntry(entry))
+				end
+			end
+
+			copy.suggestions = flat
+			out[i] = copy
+		else
+			out[i] = arg
+		end
+	end
+
+	return out
+end
+
 local function currentDefinitions(): { Definition }
 	local out: { Definition } = {}
 
@@ -602,7 +658,7 @@ local function currentDefinitions(): { Definition }
 
 			name = kommand.name,
 			rank = kommand.rank,
-			args = kommand.args,
+			args = resolveArgs(kommand.args),
 		})
 	end
 

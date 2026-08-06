@@ -372,6 +372,7 @@ export type HintChip = {
 
 	bracketOpen: TextLabel?,
 	bracketClose: TextLabel?,
+	remaining: TextLabel?,
 }
 
 export type ActiveHintChip = {

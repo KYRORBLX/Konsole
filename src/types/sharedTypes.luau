@@ -20,6 +20,8 @@ export type Argument = {
 
 	name: string?,
 	type: string?,
+	array: boolean?,
+	labels: { string }?, -- only meaningful when array is true; the typings enforce this, this table is untyped internally
 }
 
 export type Schemas = { [string]: { Argument } }
