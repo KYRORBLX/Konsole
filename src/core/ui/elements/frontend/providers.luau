@@ -67,6 +67,10 @@ function Providers.resolve(arg: Argument): { string }
 				push(value)
 			end
 		end
+	elseif type(suggestions) == "function" then
+		for _, value in (suggestions :: Provider)() do
+			push(value)
+		end
 	end
 
 	local provider = Providers[string.lower(tostring(arg.type or ""))] :: Provider?
