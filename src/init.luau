@@ -32,6 +32,8 @@ type Client = UITypes.Client
 --// locals
 local defaultClient: Client? = nil
 local registered = false
+local builtinsExcluded: { [string]: boolean }? = nil
+local builtinsIncluded: { [string]: boolean }? = nil
 
 local function registerBuiltins(): ()
 	if registered then
@@ -39,7 +41,17 @@ local function registerBuiltins(): ()
 	end
 	registered = true
 
-	Imports.Cmds.register(Imports.Core.shared.kommand)
+	local excluded = builtinsExcluded
+	if builtinsIncluded then
+		excluded = {}
+		for _, definition in Imports.Cmds.definitions do
+			if not builtinsIncluded[definition.name] then
+				excluded[definition.name] = true
+			end
+		end
+	end
+
+	Imports.Cmds.register(Imports.Core.shared.kommand, excluded)
 end
 
 local function getDefaultClient(): Client
@@ -93,6 +105,67 @@ local Konsole = {
 function Konsole.create(options: any?): Client
 	registerBuiltins()
 	return Imports.Core.ui.render.new(options)
+end
+
+--[[
+	@description opt out of specific built-in commands (bring/clear/close/ranks/
+	unban/cmds/kick/kill/ban/tp) so they don't register or replicate at all.
+	Must be called before Konsole.create/host/run/define first runs.
+	@see Konsole.excludeAllBuiltins
+	@time July 28, 2026
+]]
+function Konsole.excludeBuiltins(...: string): ()
+	assert(not registered, "Konsole.excludeBuiltins must be called before Konsole is used")
+	assert(builtinsIncluded == nil, "Konsole.excludeBuiltins cannot be used together with Konsole.includeBuiltins")
+
+	if Imports.RunService:IsClient() then
+		warn("Konsole.excludeBuiltins does nothing on the client, the server's definition list is what replicates. Call it on the server.")
+	end
+
+	local set = {}
+	for _, name in { ... } do
+		set[name] = true
+	end
+	builtinsExcluded = set
+end
+
+--[[
+	@description drops every built-in command. cmds/clear are spared by default
+	since they're the only way to see or recover the command list once
+	everything else is gone — pass `true` to drop them too. Must be called
+	before Konsole is used.
+	@time July 29, 2026
+]]
+function Konsole.excludeAllBuiltins(includeMandatory: boolean?): ()
+	assert(not registered, "Konsole.excludeAllBuiltins must be called before Konsole is used")
+	assert(builtinsIncluded == nil, "Konsole.excludeAllBuiltins cannot be used together with Konsole.includeBuiltins")
+
+	if Imports.RunService:IsClient() then
+		warn("Konsole.excludeAllBuiltins does nothing on the client, the server's definition list is what replicates. Call it on the server.")
+	end
+
+	builtinsExcluded = { all = true, dropMandatory = includeMandatory == true }
+end
+
+--[[
+	@description opposite of excludeBuiltins: drops every built-in EXCEPT the
+	names passed, e.g. Konsole.includeBuiltins("ban", "tp") keeps only those two.
+	cmds/clear stay registered regardless. Must be called before Konsole is used.
+	@time July 28, 2026
+]]
+function Konsole.includeBuiltins(...: string): ()
+	assert(not registered, "Konsole.includeBuiltins must be called before Konsole is used")
+	assert(builtinsExcluded == nil, "Konsole.includeBuiltins cannot be used together with Konsole.excludeBuiltins")
+
+	if Imports.RunService:IsClient() then
+		warn("Konsole.includeBuiltins does nothing on the client, the server's definition list is what replicates. Call it on the server.")
+	end
+
+	local set = {}
+	for _, name in { ... } do
+		set[name] = true
+	end
+	builtinsIncluded = set
 end
 
 --[[

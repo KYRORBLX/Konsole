@@ -75,6 +75,8 @@ The usual setup is:
 
 Inline `run` commands can run where they are registered. Server commands should usually use `server = "name"` with `Konsole.implement("name", callback)` or pass implementations into `Konsole.host(...)`.
 
+Command definitions replicate over a single packed `buffer`, not a raw table or JSON string — a fixed binary schema (no key names on the wire), string interning for repeated values (ranks, arg names, aliases), and a small built-in LZSS compression pass. All of this is native to Luau; there's no external dependency involved.
+
 ## Using It
 
 Server setup:
@@ -127,6 +129,17 @@ Konsole ships with a few small commands:
 - `kill`: kills a player
 
 The ban command is server-local. It blocks players for the lifetime of that server, not permanently across all servers. If you want persistent bans, store ban state in a DataStore and implement your own `banServer` / `unbanServer`.
+
+If you don't want some (or all) of the built-ins, call one of these before anything else touches Konsole (before `host`/`create`/`define`/`run`):
+
+```luau
+Konsole.excludeBuiltins("kick", "ban", "unban", "kill") -- drops just these
+Konsole.excludeAllBuiltins() -- drops all built-ins except cmds/clear
+Konsole.excludeAllBuiltins(true) -- drops literally everything, including cmds/clear
+Konsole.includeBuiltins("ban", "tp") -- keeps only ban and tp, drops the rest
+```
+
+`excludeAllBuiltins()` spares `cmds` and `clear` by default — they're the only way to see or recover from a stripped command list once everything else is gone. Pass `true` to drop them too. `excludeBuiltins`/`includeBuiltins` can also drop them individually if you explicitly name them (e.g. `Konsole.excludeBuiltins("cmds")`); that's on you either way. `excludeBuiltins`/`excludeAllBuiltins` and `includeBuiltins` can't be used together.
 
 ## Commands
 
@@ -533,6 +546,9 @@ Konsole.host(serverImplementations?)
 Konsole.define(definition)
 Konsole.implement(name, callback)
 Konsole.run(text)
+Konsole.excludeBuiltins(...names)
+Konsole.excludeAllBuiltins(includeMandatory?)
+Konsole.includeBuiltins(...names)
 
 Konsole.setRank(userId, rank)
 Konsole.getRank(entity)

@@ -48,10 +48,22 @@ local Cmds = {
 	server = Imports.Server :: { [string]: Run },
 }
 
-function Cmds.register(kommand: any)
+-- cmds/clear are the only ways to see/recover the command list, so
+-- excludeAllBuiltins() spares them unless it was called with `true`
+-- (excludeAllBuiltins(true)). They can also be dropped individually by
+-- name via excludeBuiltins("cmds")/excludeBuiltins("clear").
+local mandatory = { cmds = true, clear = true }
+
+function Cmds.register(kommand: any, excluded: { [string]: boolean }?)
 	for index, definition in Cmds.definitions do
 		assert(type(definition.name) == "string", `invalid built-in command at index {index}`)
-
+		if excluded then
+			local droppedByAll = excluded.all and (excluded.dropMandatory or not mandatory[definition.name])
+			local droppedByName = excluded[definition.name] == true
+			if droppedByAll or droppedByName then
+				continue
+			end
+		end
 		kommand.define(definition)
 	end
 end

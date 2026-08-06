@@ -815,6 +815,12 @@ function Session:recallCommand(delta)
 		return false
 	end
 
+	-- only hijack up/down for history recall when the box is empty (or we're
+	-- already mid-recall) — otherwise up/down are for suggestion navigation
+	if self.commandHistoryIndex[channel] == nil and Text.trim(self:assembleCommand(channel)) ~= "" then
+		return false
+	end
+
 	local list = self.commandHistory[channel]
 
 	if type(list) ~= "table" or #list == 0 then

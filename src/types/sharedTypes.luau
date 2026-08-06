@@ -14,7 +14,7 @@ export type Converters = { [string]: Converter }
 export type Caller = Player?
 
 export type Argument = {
-	suggestions: ({ string } | string)?,
+	suggestions: ({ string } | string | (() -> { string }))?,
 	required: boolean?,
 	default: any,
 
