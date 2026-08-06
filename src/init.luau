@@ -118,6 +118,10 @@ function Konsole.excludeBuiltins(...: string): ()
 	assert(not registered, "Konsole.excludeBuiltins must be called before Konsole is used")
 	assert(builtinsIncluded == nil, "Konsole.excludeBuiltins cannot be used together with Konsole.includeBuiltins")
 
+	if Imports.RunService:IsClient() then
+		warn("Konsole.excludeBuiltins does nothing on the client, the server's definition list is what replicates. Call it on the server.")
+	end
+
 	local set = {}
 	for _, name in { ... } do
 		set[name] = true
@@ -133,6 +137,11 @@ end
 function Konsole.excludeAllBuiltins(): ()
 	assert(not registered, "Konsole.excludeAllBuiltins must be called before Konsole is used")
 	assert(builtinsIncluded == nil, "Konsole.excludeAllBuiltins cannot be used together with Konsole.includeBuiltins")
+
+	if Imports.RunService:IsClient() then
+		warn("Konsole.excludeAllBuiltins does nothing on the client, the server's definition list is what replicates. Call it on the server.")
+	end
+
 	builtinsExcluded = { all = true }
 end
 
@@ -145,6 +154,10 @@ end
 function Konsole.includeBuiltins(...: string): ()
 	assert(not registered, "Konsole.includeBuiltins must be called before Konsole is used")
 	assert(builtinsExcluded == nil, "Konsole.includeBuiltins cannot be used together with Konsole.excludeBuiltins")
+
+	if Imports.RunService:IsClient() then
+		warn("Konsole.includeBuiltins does nothing on the client, the server's definition list is what replicates. Call it on the server.")
+	end
 
 	local set = {}
 	for _, name in { ... } do
