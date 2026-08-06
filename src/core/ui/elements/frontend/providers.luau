@@ -43,7 +43,19 @@ function Providers.resolve(arg: Argument): { string }
 	local out: { string } = {}
 
 	local function push(value: any)
-		local text = tostring(value or "")
+		local text
+
+		if type(value) == "table" then
+			-- a preset group: offer it as a single completable bracket literal, e.g. "[debug, godmode]"
+			local parts = {}
+			for _, entry in value do
+				table.insert(parts, tostring(entry))
+			end
+			text = "[" .. table.concat(parts, ", ") .. "]"
+		else
+			text = tostring(value or "")
+		end
+
 		local key = string.lower(text)
 
 		if text ~= "" and not seen[key] then
@@ -66,6 +78,10 @@ function Providers.resolve(arg: Argument): { string }
 			for _, value in provider() do
 				push(value)
 			end
+		end
+	elseif type(suggestions) == "function" then
+		for _, value in (suggestions :: Provider)() do
+			push(value)
 		end
 	end
 

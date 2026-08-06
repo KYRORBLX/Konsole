@@ -57,9 +57,10 @@ function Suggest.reveal(session, count)
     suggList.Position = startPosition
     suggList.Visible = true
 
-	if suggList.Size.Y.Offset > targetSize.Y.Offset then
-		suggList.Size = targetSize
-	end
+	-- size snaps immediately in both directions; only tweening it (like position)
+	-- risks a rapid follow-up call (e.g. typing/deleting fast) cancelling the grow
+	-- tween mid-flight and leaving the panel stuck too small, forcing a scrollbar
+	suggList.Size = targetSize
     
     if typeof(refs.suggShadow) == "Instance" and refs.suggShadow:IsA("ImageLabel") then
         
@@ -72,7 +73,6 @@ function Suggest.reveal(session, count)
     end
     
 	Tween.to(suggList, {
-        Size = targetSize,
         BackgroundTransparency = config.transparency.suggPanel,
 		Position = openPosition,
 	}, config.motion.listSmoothTime)

@@ -75,6 +75,8 @@ The usual setup is:
 
 Inline `run` commands can run where they are registered. Server commands should usually use `server = "name"` with `Konsole.implement("name", callback)` or pass implementations into `Konsole.host(...)`.
 
+Command definitions replicate over a single packed `buffer`, not a raw table or JSON string — a fixed binary schema (no key names on the wire), string interning for repeated values (ranks, arg names, aliases), and a small built-in LZSS compression pass. All of this is native to Luau; there's no external dependency involved.
+
 ## Using It
 
 Server setup:
@@ -127,6 +129,17 @@ Konsole ships with a few small commands:
 - `kill`: kills a player
 
 The ban command is server-local. It blocks players for the lifetime of that server, not permanently across all servers. If you want persistent bans, store ban state in a DataStore and implement your own `banServer` / `unbanServer`.
+
+If you don't want some (or all) of the built-ins, call one of these before anything else touches Konsole (before `host`/`create`/`define`/`run`):
+
+```luau
+Konsole.excludeBuiltins("kick", "ban", "unban", "kill") -- drops just these
+Konsole.excludeAllBuiltins() -- drops all built-ins except cmds/clear
+Konsole.excludeAllBuiltins(true) -- drops literally everything, including cmds/clear
+Konsole.includeBuiltins("ban", "tp") -- keeps only ban and tp, drops the rest
+```
+
+`excludeAllBuiltins()` spares `cmds` and `clear` by default — they're the only way to see or recover from a stripped command list once everything else is gone. Pass `true` to drop them too. `excludeBuiltins`/`includeBuiltins` can also drop them individually if you explicitly name them (e.g. `Konsole.excludeBuiltins("cmds")`); that's on you either way. `excludeBuiltins`/`excludeAllBuiltins` and `includeBuiltins` can't be used together.
 
 ## Commands
 
@@ -229,7 +242,6 @@ args = {
 		name = "target",
 		type = "player",
 		required = true,
-		suggestions = { "me" },
 	},
 	{
 		name = "reason",
@@ -247,6 +259,7 @@ Built-in types:
 - `boolean`: accepts `true`, `false`, `yes`, `no`, `on`, `off`, `1`, `0`
 - `player`: one player
 - `players`: one or more players
+- `list`: one or more values from a fixed list of `suggestions` you provide
 
 Player shortcuts:
 
@@ -254,7 +267,24 @@ Player shortcuts:
 - `all` or `*`: every player
 - `others`: every player except the caller
 
-For `player`, the token must resolve to exactly one player. For `players`, it can resolve to many.
+For `player`, the token must resolve to exactly one player. For `players`, it can resolve to many, written as a comma-separated, bracketed list: `[kio, lLonerlDev]`.
+
+Rules for a `players` list:
+
+- `all`, `*`, and `others` can only ever be the *only* entry in the list. Once one of them is picked, it can't be combined with anything else, and typing/picking another name is blocked. Picking a normal name first also blocks you from adding `all`/`others`/`*` afterward.
+- The same player can be listed more than once — duplicates aren't blocked, since typing a name you've already picked isn't a mistake worth stopping you for. Instead, the suggestion dropdown labels an already-picked name with a grey *dupe* tag so you can see it's redundant. `me` and your own name count as the same player for this — if you've already added yourself by name, `me` gets tagged too, and vice versa.
+
+`list` is the same bracketed `[a, b]` UI as `players`, but for anything else you want a fixed, author-defined set of pickable values for — item definition keys, team names, rank names, whatever your command needs multiple of. Unlike `players`, a `list` argument *requires* a `suggestions` field, and every entry typed must match one of those suggestions exactly (case-insensitive) — free text isn't accepted:
+
+```luau
+{
+	name = "items",
+	type = "list",
+	suggestions = { "sword", "shield", "potion" },
+}
+```
+
+Duplicates get the same grey *dupe* tag treatment as `players` (there's no `me`/own-name aliasing here, since a `list` isn't players).
 
 Konsole also uses argument metadata for the UI. When you type a command with args, it shows argument chips. Fixed-token args like `number` and `boolean` jump to the next chip when you press space. Bad argument types turn red while typing.
 
@@ -272,7 +302,15 @@ For a static list:
 }
 ```
 
-For player arguments, Konsole automatically suggests player names plus `me`, `all`, and `others`.
+For `player`/`players` arguments, Konsole automatically suggests online player names plus `me`, `all`, and `others` — you don't write a `suggestions` list for these types yourself.
+
+For a `players` argument specifically, the suggestion list adjusts as you go:
+
+- Once any player is picked, `all`/`others`/`*` disappear from the list, since they can no longer be picked.
+- Picking a name from the list appends it and a comma automatically, so you can keep picking more. Picking `all`/`others`/`*` instead closes the list immediately (no trailing comma), since nothing else can follow it.
+- A name already in the list still appears (you can add it again on purpose), but it's marked with a grey *dupe* tag as a heads-up.
+
+A `list` argument uses the same bracketed picking behavior as `players` (comma-append, dupe tag), except it draws its suggestions from the `suggestions` you provide instead of online players, and it has no `all`/`others`/`*` concept.
 
 Use Tab to accept a suggestion. Use Up and Down to move through suggestions. Use Left and Right to move between structured argument chips when your cursor is at the edge of a chip.
 
@@ -533,6 +571,9 @@ Konsole.host(serverImplementations?)
 Konsole.define(definition)
 Konsole.implement(name, callback)
 Konsole.run(text)
+Konsole.excludeBuiltins(...names)
+Konsole.excludeAllBuiltins(includeMandatory?)
+Konsole.includeBuiltins(...names)
 
 Konsole.setRank(userId, rank)
 Konsole.getRank(entity)

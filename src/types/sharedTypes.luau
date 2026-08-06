@@ -14,12 +14,14 @@ export type Converters = { [string]: Converter }
 export type Caller = Player?
 
 export type Argument = {
-	suggestions: ({ string } | string)?,
+	suggestions: ({ string } | string | (() -> { string }))?,
 	required: boolean?,
 	default: any,
 
 	name: string?,
 	type: string?,
+	array: boolean?,
+	labels: { string }?, -- only meaningful when array is true; the typings enforce this, this table is untyped internally
 }
 
 export type Schemas = { [string]: { Argument } }

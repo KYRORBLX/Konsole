@@ -65,8 +65,47 @@ local function asString(token: string, _caller: Caller): (boolean, any)
 	return true, tostring(token)
 end
 
+local function isCollectiveKeyword(token: string): boolean
+	local lower = string.lower(token)
+	return lower == "all" or lower == "others" or lower == "*"
+end
+
+local function dedupe(players: { Player }): { Player }
+	local seen: { [number]: boolean } = {}
+	local result: { Player } = {}
+
+	for _, player in players do
+		if not seen[player.UserId] then
+			seen[player.UserId] = true
+			table.insert(result, player)
+		end
+	end
+
+	return result
+end
+
+local function bracketEntries(raw: string): { string }?
+	if string.sub(raw, 1, 1) ~= "[" then
+		return nil
+	end
+
+	local inner = string.gsub(string.gsub(raw, "^%[", ""), "%]$", "")
+	local entries = {}
+
+	for entry in string.gmatch(inner, "[^,]+") do
+		local trimmed = string.match(entry, "^%s*(.-)%s*$") or entry
+		if trimmed ~= "" then
+			table.insert(entries, trimmed)
+		end
+	end
+
+	return entries
+end
+
 --// public api
 local Arguments = {}
+
+Arguments.isCollectiveKeyword = isCollectiveKeyword
 
 function Arguments.tokenize(text: string?): { string }
 	local tokens: { string } = {}
@@ -90,6 +129,16 @@ function Arguments.tokenize(text: string?): { string }
 				cursor = closing + 1
 			else
 				table.insert(tokens, string.sub(source, nextStart + 1))
+				cursor = #source + 1
+			end
+		elseif char == "[" then
+			local closing = string.find(source, "]", nextStart + 1, true)
+
+			if closing then
+				table.insert(tokens, string.sub(source, nextStart, closing))
+				cursor = closing + 1
+			else
+				table.insert(tokens, string.sub(source, nextStart))
 				cursor = #source + 1
 			end
 		else
@@ -152,19 +201,86 @@ Arguments.types = {
 	end,
 
 	players = function(token: string, caller: Caller): (boolean, any)
-		local matches = findPlayers(token, caller)
+		local raw = tostring(token or "")
+		local entries = bracketEntries(raw)
+
+		if entries then
+			local matches: { Player } = {}
+			local entryCount = 0
+			local sawCollective = false
+
+			for _, trimmed in entries do
+				entryCount += 1
+				local collective = isCollectiveKeyword(trimmed)
+
+				if collective then
+					sawCollective = true
+				end
+
+				local entryMatches = findPlayers(trimmed, caller)
+
+				if #entryMatches == 0 then
+					return false, `no player matching "{trimmed}"`
+				end
+
+				if #entryMatches > 1 and not collective then
+					return false, `"{trimmed}" matches more than one player`
+				end
+
+				for _, player in entryMatches do
+					table.insert(matches, player)
+				end
+			end
+
+			if sawCollective and entryCount > 1 then
+				return false, `"all"/"others" can't be combined with other players`
+			end
+
+			matches = dedupe(matches)
+
+			if #matches == 0 then
+				return false, "no players given"
+			end
+
+			return true, matches
+		end
+
+		local matches = findPlayers(raw, caller)
 
 		if #matches == 0 then
-			if string.lower(tostring(token or "")) == "others" then
+			if string.lower(raw) == "others" then
 				return false, "no other players"
 			end
 
-			return false, `no players matching "{token}"`
+			return false, `no players matching "{raw}"`
 		end
 
-		return true, matches
+		return true, dedupe(matches)
 	end,
 } :: Converters
+
+function Arguments.parseArray(token: string, typeName: string, caller: Caller): (boolean, any)
+	local raw = tostring(token or "")
+	local entries: { string } = bracketEntries(raw) or { raw }
+	local convert: Converter = Arguments.types[typeName] or asString
+
+	local values: { any } = {}
+	for _, entry in entries do
+		local ok, value = convert(entry, caller)
+
+		if not ok then
+			return false, value
+		end
+
+		table.insert(values, value)
+	end
+
+	if #values == 0 then
+		return false, "no values given"
+	end
+
+	return true, values
+end
 
 function Arguments.parse(argDefinitions: { Argument }?, tokens: { string }, caller: Caller): (boolean, any)
 	local definitions: { Argument } = if type(argDefinitions) == "table" then argDefinitions else {}
@@ -200,9 +316,14 @@ function Arguments.parse(argDefinitions: { Argument }?, tokens: { string }, call
 		end
 
 		local typeName = string.lower(tostring(definition.type or "string"))
-		local convert: Converter = Arguments.types[typeName] or asString
 
-		local ok, value = convert(token, caller)
+		local ok, value
+		if definition.array then
+			ok, value = Arguments.parseArray(token, typeName, caller)
+		else
+			local convert: Converter = Arguments.types[typeName] or asString
+			ok, value = convert(token, caller)
+		end
 
 		if not ok then
 			if optional and index < #definitions then
