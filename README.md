@@ -242,7 +242,6 @@ args = {
 		name = "target",
 		type = "player",
 		required = true,
-		suggestions = { "me" },
 	},
 	{
 		name = "reason",
@@ -267,7 +266,12 @@ Player shortcuts:
 - `all` or `*`: every player
 - `others`: every player except the caller
 
-For `player`, the token must resolve to exactly one player. For `players`, it can resolve to many.
+For `player`, the token must resolve to exactly one player. For `players`, it can resolve to many, written as a comma-separated, bracketed list: `[kio, lLonerlDev]`.
+
+Rules for a `players` list:
+
+- `all`, `*`, and `others` can only ever be the *only* entry in the list. Once one of them is picked, it can't be combined with anything else, and typing/picking another name is blocked. Picking a normal name first also blocks you from adding `all`/`others`/`*` afterward.
+- The same player can be listed more than once — duplicates aren't blocked, since typing a name you've already picked isn't a mistake worth stopping you for. Instead, the suggestion dropdown labels an already-picked name with a grey *dupe* tag so you can see it's redundant. `me` and your own name count as the same player for this — if you've already added yourself by name, `me` gets tagged too, and vice versa.
 
 Konsole also uses argument metadata for the UI. When you type a command with args, it shows argument chips. Fixed-token args like `number` and `boolean` jump to the next chip when you press space. Bad argument types turn red while typing.
 
@@ -285,7 +289,13 @@ For a static list:
 }
 ```
 
-For player arguments, Konsole automatically suggests player names plus `me`, `all`, and `others`.
+For `player`/`players` arguments, Konsole automatically suggests online player names plus `me`, `all`, and `others` — you don't write a `suggestions` list for these types yourself.
+
+For a `players` argument specifically, the suggestion list adjusts as you go:
+
+- Once any player is picked, `all`/`others`/`*` disappear from the list, since they can no longer be picked.
+- Picking a name from the list appends it and a comma automatically, so you can keep picking more. Picking `all`/`others`/`*` instead closes the list immediately (no trailing comma), since nothing else can follow it.
+- A name already in the list still appears (you can add it again on purpose), but it's marked with a grey *dupe* tag as a heads-up.
 
 Use Tab to accept a suggestion. Use Up and Down to move through suggestions. Use Left and Right to move between structured argument chips when your cursor is at the edge of a chip.
 

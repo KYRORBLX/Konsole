@@ -99,8 +99,6 @@ declare namespace Konsole {
 		T["type"] extends "players" ? Player[] :
 		string;
 
-	export type Run = (context: Context, ...args: unknown[]) => unknown;
-	export type RankResolver = (entity: unknown) => number | undefined;
 	export type PanelPosition =
 		| UDim2
 		| "br"
@@ -115,9 +113,6 @@ declare namespace Konsole {
 		| "bottom left"
 		| "bottom center"
 		| "top center";
-	export type ConfigOverrides = Record<string, Record<string, unknown>> & {
-		panel?: Record<string, unknown> & { position?: PanelPosition };
-	};
 
 	/**
 	 * What actually reaches the callback: `parse` skips an argument entirely
@@ -450,9 +445,11 @@ declare namespace Konsole {
 		define: <const T extends readonly Argument[] = readonly Argument[], S extends string | undefined = undefined>(
 			definition: Definition<T, S>,
 		) => Command<RunArgs<T>, S>;
-		excludeBuiltins: (names?: Array<string>) => void;
+		excludeAllBuiltins: (includeMandatory?: boolean) => void;
+		excludeBuiltins: (...names: BuiltinName[]) => void;
+		includeBuiltins: (...names: BuiltinName[]) => void;
 		getRank: (entity: RankEntity) => number;
-		host: (serverImplementations?: Record<string, Run<Array<any>>>) => RemoteFunction | undefined;
+		host: (serverImplementations?: Record<string, Run>) => RemoteFunction | undefined;
 		implement: Implement;
 		run: (text: string) => ExecuteResult;
 		setRank: (userId: number | string, rank: number | RankName) => number;
@@ -471,30 +468,6 @@ declare namespace Konsole {
 		setSuggestions: (list: string[]) => void;
 		show: () => void;
 		toggle: () => void;
-	}
-
-	export interface Api extends Client {
-		Arguments: unknown;
-		Chat: unknown;
-		Config: unknown;
-		Dispatch: unknown;
-		Kommand: unknown;
-		Ranks: unknown;
-		Render: unknown;
-		Result: unknown;
-		bindRanks: (resolver?: RankResolver) => void;
-		create: (options?: ConfigOverrides) => Client;
-		define: <const T extends readonly Argument[]>(
-			definition: Definition<T>,
-		) => Command;
-		excludeAllBuiltins: (includeMandatory?: boolean) => void;
-		excludeBuiltins: (...names: Array<BuiltinName>) => void;
-		getRank: (entity: unknown) => number;
-		host: (serverImplementations?: Record<string, Run>) => RemoteFunction | undefined;
-		implement: (name: string, callback: Run) => void;
-		includeBuiltins: (...names: Array<BuiltinName>) => void;
-		run: (text: string) => Outcome;
-		setRank: (userId: unknown, rank: number | string) => number;
 	}
 }
 

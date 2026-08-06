@@ -369,6 +369,9 @@ export type HintChip = {
 
 	frame: Frame,
 	box: TextBox,
+
+	bracketOpen: TextLabel?,
+	bracketClose: TextLabel?,
 }
 
 export type ActiveHintChip = {

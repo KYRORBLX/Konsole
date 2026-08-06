@@ -8,7 +8,9 @@
 local Imports = {
 	Suggest = require("../../motion/suggest"),
     Providers = require("./providers"),
-    
+
+	Arguments = require("../../../shared/kommand/arguments"),
+	Players = game:GetService("Players"),
 	Text = require("../misc/text"),
 	View = require("../misc/view"),
 }
@@ -20,6 +22,35 @@ end
 
 local function contains(value, needle)
 	return string.find(value, needle, 1, true) ~= nil
+end
+
+local isCollectiveKeyword = Imports.Arguments.isCollectiveKeyword
+
+local function toHex(color: Color3): string
+	return string.format("#%02X%02X%02X", color.R * 255, color.G * 255, color.B * 255)
+end
+
+-- lowercase names already confirmed before the segment currently being typed
+local function confirmedPlayerNames(text)
+	local lastComma = nil
+
+	for position in string.gmatch(text, "()%,") do
+		lastComma = position
+	end
+
+	if not lastComma then
+		return {}
+	end
+
+	local names = {}
+	for entry in string.gmatch(string.sub(text, 1, lastComma - 1), "[^,]+") do
+		local trimmed = string.match(entry, "^%s*(.-)%s*$") or entry
+		if trimmed ~= "" then
+			names[string.lower(trimmed)] = true
+		end
+	end
+
+	return names
 end
 
 local function rankSuggestion(query, suggestion)
@@ -154,6 +185,16 @@ function Suggestions.attach(Session)
 		if chip and type(chip.arg) == "table" then
 			local source = Imports.Providers.resolve(chip.arg)
 
+			if chip.arg.type == "players" and next(confirmedPlayerNames(chip.box.Text)) then
+				local filtered = {}
+				for _, entry in source do
+					if not isCollectiveKeyword(entry) then
+						table.insert(filtered, entry)
+					end
+				end
+				source = filtered
+			end
+
 			if text == "" then
 				return source, text
 			end
@@ -227,9 +268,14 @@ function Suggestions.attach(Session)
 			if typeof(label) == "Instance" and label:IsA("TextLabel") then
 				label.Font = selected and config.font.title or config.font.body
                 local suggestion = child:GetAttribute("SuggestionText")
-                
+
 				if type(suggestion) == "string" then
 					local richText = Imports.View.richSuggestion(suggestion, self.suggestionQuery, config)
+
+					if child:GetAttribute("Dupe") then
+						richText ..= ` <font color="{toHex(config.color.mutedText)}"><i>dupe</i></font>`
+					end
+
 					label.Text = selected and ("<b>" .. richText .. "</b>") or richText
 				end
             end
@@ -285,6 +331,20 @@ function Suggestions.attach(Session)
 			return
 		end
 
+		local chip = if type(self.focusedChip) == "function" then self:focusedChip() else self.activeChip
+		local dupeNames = {}
+
+		if chip and type(chip.arg) == "table" and chip.arg.type == "players" then
+			dupeNames = confirmedPlayerNames(chip.box.Text)
+
+			-- "me" and the local player's own name refer to the same entry
+			local localName = string.lower(Imports.Players.LocalPlayer.Name)
+			if dupeNames["me"] or dupeNames[localName] then
+				dupeNames["me"] = true
+				dupeNames[localName] = true
+			end
+		end
+
 		local showing = suggList.Visible and not self.suggestionsHiding
 		local list, query = self:resolveSuggestions(text)
 		local limit = math.max(0, math.floor(tonumber(panel.maxSuggestions) or 5))
@@ -338,6 +398,7 @@ function Suggestions.attach(Session)
             
 			Imports.View.corner(button, panel.suggestionRadius or 10)
 			button:SetAttribute("SuggestionText", suggestion)
+			button:SetAttribute("Dupe", dupeNames[string.lower(suggestion)] == true)
 
 			local label = Imports.View.make("TextLabel", {
                 Name = "Label",
@@ -356,7 +417,10 @@ function Suggestions.attach(Session)
                 TextTransparency = showing and config.transparency.suggText or 1,
                 ZIndex = 33,
 				
-                Text = Imports.View.richSuggestion(suggestion, query, config),
+                Text = Imports.View.richSuggestion(suggestion, query, config)
+                    .. (dupeNames[string.lower(suggestion)]
+                        and string.format(' <font color="%s"><i>dupe</i></font>', toHex(config.color.mutedText))
+                        or ""),
                 RichText = true,
 			}, button)
 
@@ -397,7 +461,42 @@ function Suggestions.attach(Session)
 
 		local chip = if type(self.focusedChip) == "function" then self:focusedChip() else self.activeChip
 		if chip and typeof(chip.box) == "Instance" and chip.box:IsA("TextBox") then
-            
+
+			if chip.arg and chip.arg.type == "players" then
+				if not self:playersEntryAllowed(chip.box.Text, suggestion) then
+					return false
+				end
+
+				local body = chip.box.Text
+				local lastComma = nil
+
+				for position in string.gmatch(body, "()%,") do
+					lastComma = position
+				end
+
+				local prefix = lastComma and (string.sub(body, 1, lastComma) .. " ") or ""
+
+				-- all/others can't be followed by more entries, so close the list instead of inviting another comma
+				local newText = isCollectiveKeyword(suggestion) and (prefix .. suggestion) or (prefix .. suggestion .. ", ")
+
+				chip.box.Text = newText
+				chip.box.CursorPosition = #newText + 1
+				chip.box:CaptureFocus()
+
+				if isCollectiveKeyword(suggestion) then
+					self:hideSuggestions()
+
+					local chips = self.channelChips[chip.channel] or {}
+					if chip.index < #chips then
+						self:focusChip(chip.channel, chip.index + 1)
+					end
+				else
+					self:updateSuggestions("")
+				end
+
+				return true
+			end
+
             chip.box.CursorPosition = #suggestion + 1
             chip.box.Text = suggestion
 

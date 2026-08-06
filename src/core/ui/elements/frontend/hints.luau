@@ -106,6 +106,48 @@ local function fixedTokenArg(arg)
 	return typeName == "number" or typeName == "boolean"
 end
 
+local function playersListArg(arg)
+	return string.lower(tostring(arg.type or "string")) == "players"
+end
+
+local isCollectiveKeyword = Imports.Arguments.isCollectiveKeyword
+
+-- text after the last confirmed comma, i.e. the name currently being typed
+local function tailSegment(text)
+	local lastComma = nil
+
+	for position in string.gmatch(text, "()%,") do
+		lastComma = position
+	end
+
+	local tail = lastComma and string.sub(text, lastComma + 1) or text
+	return string.match(tail, "^%s*(.-)%s*$") or tail
+end
+
+-- entries already confirmed before the segment currently being typed
+local function confirmedEntries(text)
+	local inner = string.gsub(text, "^%[", "")
+	local lastComma = nil
+
+	for position in string.gmatch(inner, "()%,") do
+		lastComma = position
+	end
+
+	if not lastComma then
+		return {}
+	end
+
+	local entries = {}
+	for entry in string.gmatch(string.sub(inner, 1, lastComma - 1), "[^,]+") do
+		local trimmed = string.match(entry, "^%s*(.-)%s*$") or entry
+		if trimmed ~= "" then
+			table.insert(entries, string.lower(trimmed))
+		end
+	end
+
+	return entries
+end
+
 local function argValid(arg, text)
 	text = Imports.Text.trim(text)
 	if text == "" then
@@ -120,6 +162,10 @@ local function argValid(arg, text)
 		return true
 	end
 
+	if playersListArg(arg) then
+		text = "[" .. text .. "]"
+	end
+
 	local ok = convert(text, Imports.Players.LocalPlayer)
 
 	return ok == true
@@ -131,6 +177,24 @@ local Hints = {}
 function Hints.attach(Session)
 	function Session:setSchemas(map)
 		self.argSchemas = type(map) == "table" and map or {}
+	end
+
+	-- all/others can only ever be the sole entry in a players list; plain duplicates are allowed
+	function Session:playersEntryAllowed(existingText, entry)
+		local confirmed = confirmedEntries(existingText)
+		local collective = isCollectiveKeyword(entry)
+
+		if collective then
+			return #confirmed == 0
+		end
+
+		for _, existing in confirmed do
+			if isCollectiveKeyword(existing) then
+				return false
+			end
+		end
+
+		return true
 	end
 
 	function Session:commandContext(text)
@@ -227,6 +291,11 @@ function Hints.attach(Session)
 					Imports.Hint.text(self, chip.name, 1)
 
 					Imports.Hint.text(self, chip.box, 1)
+
+					if chip.bracketOpen then
+						Imports.Hint.text(self, chip.bracketOpen, 1)
+						Imports.Hint.text(self, chip.bracketClose, 1)
+					end
 				end
 
 				self.hintKey[target] = nil
@@ -344,6 +413,34 @@ function Hints.attach(Session)
 				Size = UDim2.fromOffset(0, panel.hintHeight or 20),
 			}, frame) :: TextLabel
 
+			local isPlayersList = playersListArg(arg)
+
+			local function bracketLabel(text, order)
+				return Imports.View.make("TextLabel", {
+
+					BackgroundTransparency = 1,
+					TextTransparency = 1,
+					LayoutOrder = order,
+
+					TextColor3 = colors.mutedText,
+					Font = config.font.mono,
+
+					TextSize = layout.hintTextSize or 13,
+					ZIndex = row.ZIndex + 1,
+					Active = true,
+
+					Text = text,
+					Name = "Bracket",
+
+					AutomaticSize = Enum.AutomaticSize.X,
+					TextYAlignment = Enum.TextYAlignment.Center,
+					Size = UDim2.fromOffset(0, panel.hintHeight or 20),
+				}, frame) :: TextLabel
+			end
+
+			local bracketOpen = isPlayersList and bracketLabel("[", 2) or nil
+			local bracketClose
+
 			local box = Imports.View.make("TextBox", {
 
 				PlaceholderColor3 = colors.hintGhost or colors.mutedText,
@@ -357,7 +454,7 @@ function Hints.attach(Session)
 
 				TextSize = layout.hintTextSize or 13,
 				ZIndex = row.ZIndex + 1,
-				LayoutOrder = 2,
+				LayoutOrder = isPlayersList and 3 or 2,
 
 				MultiLine = false,
 
@@ -370,6 +467,10 @@ function Hints.attach(Session)
 				TextYAlignment = Enum.TextYAlignment.Center,
 				Size = UDim2.fromOffset(6, panel.hintHeight or 20),
 			}, frame) :: TextBox
+
+			if isPlayersList then
+				bracketClose = bracketLabel("]", 4)
+			end
 
 			local function fitValue()
 				local source = box.Text ~= "" and box.Text or typeName
@@ -393,7 +494,7 @@ function Hints.attach(Session)
 
 				fitValue()
 
-				self:updateSuggestions(box.Text)
+				self:updateSuggestions(isPlayersList and tailSegment(box.Text) or box.Text)
 			end))
 
 			track(box:GetPropertyChangedSignal("Text"):Connect(function()
@@ -423,6 +524,59 @@ function Hints.attach(Session)
 						task.defer(function()
 							self:focusChip(channel, index + 1)
 						end)
+					end
+
+					return
+				end
+
+				if playersListArg(arg) then
+					local text = box.Text
+					local lastChar = string.sub(text, -1)
+
+					if lastChar == "," or lastChar == "]" then
+						local body = string.sub(text, 1, -2)
+						local segment = tailSegment(body)
+
+						local ok = segment ~= ""
+						local collective = ok and isCollectiveKeyword(segment)
+
+						if ok then
+							if collective then
+								ok = Imports.Arguments.types.players(segment, Imports.Players.LocalPlayer) == true
+							else
+								ok = Imports.Arguments.types.player(segment, Imports.Players.LocalPlayer) == true
+							end
+						end
+
+						if ok then
+							ok = self:playersEntryAllowed(body, segment)
+						end
+
+						if not ok then
+							box.Text = body
+							return
+						end
+
+						if lastChar == "," then
+							box.Text = body .. ", "
+							return
+						end
+
+						-- valid "]" close: bracket is drawn statically, don't store it
+						box.Text = body
+
+						if index < #self.channelChips[channel] then
+							task.defer(function()
+								self:focusChip(channel, index + 1)
+							end)
+						end
+					end
+
+					fitValue()
+					self:styleChips(channel)
+
+					if self.activeChip and self.activeChip.box == box then
+						self:updateSuggestions(tailSegment(box.Text))
 					end
 
 					return
@@ -461,6 +615,8 @@ function Hints.attach(Session)
 				frame = frame,
 				box = box,
 				arg = arg,
+				bracketOpen = bracketOpen,
+				bracketClose = bracketClose,
 			})
 		end
 	end
@@ -490,6 +646,11 @@ function Hints.attach(Session)
 		for _, chip in (self.channelChips[channel] or {}) :: { Chip } do
 			Imports.Hint.text(self, chip.name, 0)
 			Imports.Hint.text(self, chip.box, 0)
+
+			if chip.bracketOpen then
+				Imports.Hint.text(self, chip.bracketOpen, 0)
+				Imports.Hint.text(self, chip.bracketClose, 0)
+			end
 		end
 	end
 
@@ -685,18 +846,26 @@ function Hints.attach(Session)
 
 		local chips = (self.channelChips[channel] or {}) :: { Chip }
 
+		local function seed(chip, token)
+			if playersListArg(chip.arg) then
+				token = string.gsub(string.gsub(token, "^%[", ""), "%]$", "")
+			end
+
+			chip.box.Text = token
+		end
+
 		if ctx.glued and ctx.glued ~= "" then
 			local chip = chips[ctx.activeIndex]
 
 			if chip and chip.box.Text == "" then
-				chip.box.Text = ctx.glued
+				seed(chip, ctx.glued)
 			end
 		else
 			for tokenIndex = 2, #ctx.tokens do
 				local chip = chips[tokenIndex - 1]
 
 				if chip and chip.box.Text == "" then
-					chip.box.Text = ctx.tokens[tokenIndex]
+					seed(chip, ctx.tokens[tokenIndex])
 				end
 			end
 		end
@@ -740,6 +909,10 @@ function Hints.attach(Session)
 			local value = Imports.Text.trim(chip.box.Text)
 
 			if value ~= "" then
+				if playersListArg(chip.arg) then
+					value = "[" .. value .. "]"
+				end
+
 				table.insert(parts, quoteIfNeeded(value))
 			end
 		end
